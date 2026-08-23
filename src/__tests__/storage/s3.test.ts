@@ -1,9 +1,13 @@
 import { describe, it, expect, vi } from "vitest";
 import { S3Backend, S3Config, S3Client } from "../../storage/s3";
 
-const mockClient = (existing: Set<string>): S3Client => ({
+const mockClient = (existing: Set<string>, opts: { bucketExists?: boolean; bucketExistsThrow?: string } = {}): S3Client => ({
   putObject: vi.fn(async (key: string, _buf: ArrayBuffer) => { existing.add(key); }),
   objectExists: vi.fn(async (key: string) => existing.has(key)),
+  bucketExists: vi.fn(async () => {
+    if (opts.bucketExistsThrow) throw new Error(opts.bucketExistsThrow);
+    return opts.bucketExists ?? true;
+  }),
 });
 
 const cfg: S3Config = {
@@ -41,5 +45,23 @@ describe("S3Backend", () => {
     const b = new S3Backend({ ...cfg, publicUrlTemplate: "" }, client);
     const url = await b.put(new ArrayBuffer(4), "cat.png");
     expect(url).toBe("https://s3.example.com/media/notes/cat.png");
+  });
+
+  describe("ping", () => {
+    it("resolves when bucketExists returns true", async () => {
+      const client = mockClient(new Set(), { bucketExists: true });
+      const b = new S3Backend(cfg, client);
+      await expect(b.ping()).resolves.toBeUndefined();
+    });
+    it("throws when bucketExists returns false", async () => {
+      const client = mockClient(new Set(), { bucketExists: false });
+      const b = new S3Backend(cfg, client);
+      await expect(b.ping()).rejects.toThrow('S3: bucket "media" not found or no access — check bucket/region/credentials');
+    });
+    it("wraps errors thrown by bucketExists", async () => {
+      const client = mockClient(new Set(), { bucketExistsThrow: "network unreachable" });
+      const b = new S3Backend(cfg, client);
+      await expect(b.ping()).rejects.toThrow("S3: network unreachable");
+    });
   });
 });

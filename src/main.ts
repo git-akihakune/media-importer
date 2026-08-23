@@ -44,8 +44,18 @@ export default class MediaImporterPlugin extends Plugin {
     await this.saveData(this.settings);
   }
 
+  private makeVault(): ObsidianVaultAdapter {
+    return new ObsidianVaultAdapter(this.app.vault, () => (this.app.vault as unknown as { getConfig?: (k: string) => string })?.getConfig?.("attachmentFolderPath") ?? "");
+  }
+
+  async testActiveBackend(): Promise<void> {
+    const vault = this.makeVault();
+    const backend = this.buildBackend(vault);
+    await backend.ping();
+  }
+
   private async run(dryRun: boolean) {
-    const vault = new ObsidianVaultAdapter(this.app.vault, () => (this.app.vault as unknown as { getConfig?: (k: string) => string })?.getConfig?.("attachmentFolderPath") ?? "");
+    const vault = this.makeVault();
     const fetch = new ObsidianFetchRequester();
     const backend = this.buildBackend(vault);
 

@@ -112,6 +112,23 @@ export class ObsidianWebDAVRequester implements WebDAVRequester {
       return { exists: false };
     }
   }
+
+  async test(url: string, auth: { username: string; password: string }): Promise<{ ok: boolean; status: number }> {
+    try {
+      const res = await requestUrl({
+        url,
+        method: "PROPFIND",
+        headers: {
+          Authorization: "Basic " + base64(`${auth.username}:${auth.password}`),
+          Depth: "0",
+        },
+      });
+      return { ok: res.status >= 200 && res.status < 300, status: res.status };
+    } catch (e: unknown) {
+      const status = (e as { status?: number })?.status ?? 0;
+      return { ok: false, status };
+    }
+  }
 }
 
 function base64(s: string): string {
@@ -142,5 +159,8 @@ export class MinioS3Client implements S3Client {
     } catch {
       return false;
     }
+  }
+  async bucketExists(bucket: string): Promise<boolean> {
+    return await this.client.bucketExists(bucket);
   }
 }

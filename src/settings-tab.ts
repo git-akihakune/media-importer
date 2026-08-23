@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting, TextComponent, ToggleComponent, DropdownComponent } from "obsidian";
+import { App, PluginSettingTab, Setting, TextComponent, ToggleComponent, DropdownComponent, ButtonComponent, Notice } from "obsidian";
 import MediaImporterPlugin from "./main";
 import { MediaImporterSettings } from "./settings";
 
@@ -80,6 +80,31 @@ export class MediaImporterSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
             this.display();
           });
+      });
+
+    const statusEl = containerEl.createEl("div");
+    statusEl.style.marginLeft = "var(--checkbox-size)";
+    statusEl.style.marginTop = "0.5em";
+    statusEl.style.minHeight = "1.2em";
+    new Setting(containerEl)
+      .setName("Test connection")
+      .setDesc("Verify the active backend is reachable with current credentials.")
+      .addButton((b: ButtonComponent) => {
+        b.setButtonText("Test connection").onClick(async () => {
+          statusEl.setText("Testing…");
+          statusEl.style.color = "";
+          try {
+            await this.plugin.testActiveBackend();
+            statusEl.setText("✓ Connection OK");
+            statusEl.style.color = "var(--text-success, #4caf50)";
+            new Notice("Media import: connection OK");
+          } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e);
+            statusEl.setText(`✗ ${msg}`);
+            statusEl.style.color = "var(--text-error, #f44336)";
+            new Notice(`Media import: ${msg}`);
+          }
+        });
       });
 
     if (s.activeBackend === "local") {

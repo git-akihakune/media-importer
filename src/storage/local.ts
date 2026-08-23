@@ -29,4 +29,12 @@ export class LocalStorageBackend implements Backend {
     const folder = this.cfg.folder.replace(/^\/+|\/+$/g, "");
     return url.startsWith(folder + "/") || url === folder;
   }
+
+  async ping(): Promise<void> {
+    const folder = this.cfg.folder;
+    if (!folder) return;
+    if (!(await this.vault.exists(folder))) {
+      throw new Error(`Local: folder "${folder}" not found in vault`);
+    }
+  }
 }

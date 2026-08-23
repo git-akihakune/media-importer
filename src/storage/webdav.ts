@@ -11,6 +11,7 @@ export interface WebDAVConfig {
 export interface WebDAVRequester {
   put(url: string, buf: ArrayBuffer, auth: { username: string; password: string }): Promise<{ ok: boolean; status: number }>;
   head(url: string, auth: { username: string; password: string }): Promise<{ exists: boolean }>;
+  test(url: string, auth: { username: string; password: string }): Promise<{ ok: boolean; status: number }>;
 }
 
 export class WebDAVBackend implements Backend {
@@ -53,5 +54,14 @@ export class WebDAVBackend implements Backend {
 
   selfProduced(url: string): boolean {
     return url.startsWith(this.base());
+  }
+
+  async ping(): Promise<void> {
+    const { ok, status } = await this.req.test(this.base(), this.auth());
+    if (ok) return;
+    if (status === 401) throw new Error("WebDAV: unauthorized — check username/password");
+    if (status === 404) throw new Error("WebDAV: base URL not found — check baseURL");
+    if (status === 0) throw new Error("WebDAV: cannot reach endpoint — check baseURL and network");
+    throw new Error(`WebDAV: unexpected status ${status}`);
   }
 }

@@ -14,6 +14,7 @@ export interface S3Config {
 export interface S3Client {
   putObject(key: string, buf: ArrayBuffer): Promise<void>;
   objectExists(key: string): Promise<boolean>;
+  bucketExists(bucket: string): Promise<boolean>;
 }
 
 export class S3Backend implements Backend {
@@ -64,5 +65,18 @@ export class S3Backend implements Backend {
     }
     const prefix = this.cfg.publicUrlTemplate.split("{{key}}")[0];
     return url.startsWith(prefix);
+  }
+
+  async ping(): Promise<void> {
+    try {
+      const exists = await this.client.bucketExists(this.cfg.bucket);
+      if (!exists) {
+        throw new Error(`S3: bucket "${this.cfg.bucket}" not found or no access — check bucket/region/credentials`);
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.startsWith("S3: ")) throw e;
+      throw new Error(`S3: ${msg}`);
+    }
   }
 }
