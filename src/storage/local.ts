@@ -17,6 +17,12 @@ export class LocalStorageBackend implements Backend {
     return path;
   }
 
+  async dryRunDest(name: string): Promise<string> {
+    const existing = await this.vault.listDir(this.cfg.folder);
+    const final = collisionSuffix(name, new Set(existing));
+    return joinVaultPath(this.cfg.folder, final);
+  }
+
   selfProduced(url: string): boolean {
     if (!url) return false;
     if (/^(https?:|app:|file:)/i.test(url)) return false;

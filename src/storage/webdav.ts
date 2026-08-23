@@ -40,6 +40,17 @@ export class WebDAVBackend implements Backend {
     return url;
   }
 
+  async dryRunDest(name: string): Promise<string> {
+    if (!this.cfg.avoidOverwrite) return this.base() + name;
+    const existing = new Set<string>();
+    let candidate = name;
+    while ((await this.req.head(this.base() + candidate, this.auth())).exists) {
+      existing.add(candidate);
+      candidate = collisionSuffix(name, existing);
+    }
+    return this.base() + candidate;
+  }
+
   selfProduced(url: string): boolean {
     return url.startsWith(this.base());
   }

@@ -43,6 +43,16 @@ export class S3Backend implements Backend {
     return this.renderPublicURL(key);
   }
 
+  async dryRunDest(name: string): Promise<string> {
+    const existing = new Set<string>();
+    let candidate = name;
+    while (await this.client.objectExists(this.fullKey(candidate))) {
+      existing.add(candidate);
+      candidate = collisionSuffix(name, existing);
+    }
+    return this.renderPublicURL(this.fullKey(candidate));
+  }
+
   private fullKey(name: string): string {
     const p = this.prefix();
     return p ? `${p}/${name}` : name;
