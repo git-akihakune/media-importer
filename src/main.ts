@@ -10,6 +10,9 @@ import {
 import { DryRunAccumulator, ProgressReporter } from "./progress";
 import { RunReport } from "./types";
 import { urlBasename } from "./url";
+import { wipeBackend, migrateBackend, WipeReport, MigrateReport } from "./ops";
+import { Backend } from "./storage/backend";
+import { walkVault, ScannerConfig } from "./scanner";
 
 export default class MediaImporterPlugin extends Plugin {
   settings!: MediaImporterSettings;
@@ -47,6 +50,26 @@ export default class MediaImporterPlugin extends Plugin {
     const vault = this.makeVault();
     const backend = buildBackendFromSettings(this.resolveSettings(), vault);
     await backend.ping();
+  }
+
+  async wipeActiveBackend(): Promise<WipeReport> {
+    const vault = this.makeVault();
+    const backend = buildBackendFromSettings(this.resolveSettings(), vault);
+    return await wipeBackend({ vault, backend }, this.settings);
+  }
+
+  async migrateActiveBackend(dest: Backend): Promise<MigrateReport> {
+    const vault = this.makeVault();
+    const source = buildBackendFromSettings(this.resolveSettings(), vault);
+    return await migrateBackend({ vault, source, dest }, this.settings);
+  }
+
+  async collectWipeTargets(): Promise<string[]> {
+    const vault = this.makeVault();
+    const backend = buildBackendFromSettings(this.resolveSettings(), vault);
+    const scannerCfg: ScannerConfig = { ...this.settings.detectors };
+    const refs = await walkVault(vault, this.settings.scanPaths, scannerCfg);
+    return [...new Set(refs.filter(r => backend.selfProduced(r.url)).map(r => r.url))];
   }
 
   private async run(dryRun: boolean) {
