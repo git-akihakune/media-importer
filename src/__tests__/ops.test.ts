@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { wipeBackend } from "../ops";
+import { wipeBackend, migrateBackend } from "../ops";
 import { FakeVault } from "./helpers/fake-vault";
 import { Backend } from "../storage/backend";
 import { MediaImporterSettings } from "../settings";
@@ -66,5 +66,46 @@ describe("wipeBackend", () => {
     const backend = makeBackend("https://src/");
     await wipeBackend({ vault, backend }, baseSettings);
     expect(vault.files[0].content).toBe(original);
+  });
+});
+
+describe("migrateBackend", () => {
+  it("copies files from source to dest and rewrites notes", async () => {
+    const vault = new FakeVault([{ path: "n.md", content: "![a](https://src/a.png)" }]);
+    const buf = new ArrayBuffer(8);
+    const source = {
+      ...makeBackend("https://src/"),
+      get: vi.fn(async () => buf),
+    };
+    const dest = {
+      ...makeBackend("https://dest/"),
+      put: vi.fn(async (_b: ArrayBuffer, name: string) => `https://dest/${name}`),
+    };
+    const report = await migrateBackend({ vault, source, dest }, baseSettings);
+    expect(source.get).toHaveBeenCalledWith("https://src/a.png");
+    expect(dest.put).toHaveBeenCalledWith(buf, "a.png");
+    expect(report.migrated).toBe(1);
+    expect(report.failed).toEqual([]);
+    expect(vault.files[0].content).toBe("![a](https://dest/a.png)");
+  });
+  it("leaves source files intact", async () => {
+    const vault = new FakeVault([{ path: "n.md", content: "![a](https://src/a.png)" }]);
+    const sourceDelete = vi.fn(async () => {});
+    const source = { ...makeBackend("https://src/"), delete: sourceDelete, get: vi.fn(async () => new ArrayBuffer(0)) };
+    const dest = makeBackend("https://dest/");
+    await migrateBackend({ vault, source, dest }, baseSettings);
+    expect(sourceDelete).not.toHaveBeenCalled();
+  });
+  it("continues on per-file failure", async () => {
+    const vault = new FakeVault([{ path: "n.md", content: "![a](https://src/a.png) ![b](https://src/b.png)" }]);
+    const source = {
+      ...makeBackend("https://src/"),
+      get: vi.fn(async (url: string) => { if (url === "https://src/a.png") throw new Error("boom"); return new ArrayBuffer(0); }),
+    };
+    const dest = makeBackend("https://dest/");
+    const report = await migrateBackend({ vault, source, dest }, baseSettings);
+    expect(report.migrated).toBe(1);
+    expect(report.failed).toHaveLength(1);
+    expect(report.failed[0].url).toBe("https://src/a.png");
   });
 });
