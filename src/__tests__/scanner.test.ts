@@ -175,6 +175,93 @@ describe("scanNote — html av", () => {
   });
 });
 
+describe("scanNote — wrapped image-link (click-to-zoom)", () => {
+  it("detects [![alt](url)](url) and records linkUrl when href equals src", () => {
+    const note = "[![cat](https://example.com/cat.png)](https://example.com/cat.png)";
+    const refs = scanNote(note, cfg());
+    expect(refs).toHaveLength(1);
+    const r = refs[0];
+    expect(r.url).toBe("https://example.com/cat.png");
+    expect(r.linkUrl).toBe("https://example.com/cat.png");
+    expect(r.rawStart).toBe(0);
+    expect(r.rawEnd).toBe(note.length);
+    expect(r.rawMatch).toBe(note);
+  });
+  it("collapses to the embed: rawMatch covers the entire wrapper", () => {
+    const inner = "![cat](https://example.com/cat.png)";
+    const note = `[${inner}](https://example.com/cat.png)`;
+    const refs = scanNote(note, cfg());
+    expect(refs).toHaveLength(1);
+    expect(refs[0].rawMatch).toBe(note);
+    expect(refs[0].rawMatch).not.toBe(inner);
+  });
+  it("leaves linkUrl unset when href differs from src (genuine citation)", () => {
+    const note = "[![cat](https://example.com/cat.png)](https://example.com/article)";
+    const refs = scanNote(note, cfg());
+    expect(refs).toHaveLength(1);
+    expect(refs[0].url).toBe("https://example.com/cat.png");
+    expect(refs[0].linkUrl).toBeUndefined();
+    expect(refs[0].rawMatch).toBe("![cat](https://example.com/cat.png)");
+  });
+  it("handles title attribute on the wrapper link", () => {
+    const note = '[![cat](https://example.com/cat.png)](https://example.com/cat.png "view")';
+    const refs = scanNote(note, cfg());
+    expect(refs).toHaveLength(1);
+    expect(refs[0].linkUrl).toBe("https://example.com/cat.png");
+    expect(refs[0].rawMatch).toBe(note);
+  });
+  it("handles title attribute on the inner image", () => {
+    const inner = '![cat](https://example.com/cat.png "a cat")';
+    const note = `[${inner}](https://example.com/cat.png)`;
+    const refs = scanNote(note, cfg());
+    expect(refs).toHaveLength(1);
+    expect(refs[0].linkUrl).toBe("https://example.com/cat.png");
+    expect(refs[0].rawMatch).toBe(note);
+  });
+  it("detects wrapped av embed", () => {
+    const note = "[![](https://example.com/clip.mp4)](https://example.com/clip.mp4)";
+    const refs = scanNote(note, cfg());
+    expect(refs).toHaveLength(1);
+    expect(refs[0].kind).toBe("md-av");
+    expect(refs[0].linkUrl).toBe("https://example.com/clip.mp4");
+    expect(refs[0].rawMatch).toBe(note);
+  });
+  it("preserves correct offsets for wrapped embed after leading text", () => {
+    const prefix = "intro\n";
+    const wrapped = "[![cat](https://example.com/cat.png)](https://example.com/cat.png)";
+    const note = prefix + wrapped;
+    const refs = scanNote(note, cfg());
+    expect(refs).toHaveLength(1);
+    expect(refs[0].rawStart).toBe(prefix.length);
+    expect(refs[0].rawEnd).toBe(note.length);
+  });
+  it("does not false-positive on a bare image followed by trailing ()", () => {
+    const note = "![cat](https://example.com/cat.png) and (text)";
+    const refs = scanNote(note, cfg());
+    expect(refs).toHaveLength(1);
+    expect(refs[0].linkUrl).toBeUndefined();
+    expect(refs[0].rawMatch).toBe("![cat](https://example.com/cat.png)");
+  });
+  it("detects two wrapped images on the same line", () => {
+    const a = "[![a](https://x.com/a.png)](https://x.com/a.png)";
+    const b = "[![b](https://x.com/b.png)](https://x.com/b.png)";
+    const note = `${a} ${b}`;
+    const refs = scanNote(note, cfg());
+    expect(refs).toHaveLength(2);
+    expect(refs[0].rawMatch).toBe(a);
+    expect(refs[1].rawMatch).toBe(b);
+    expect(refs[0].linkUrl).toBe("https://x.com/a.png");
+    expect(refs[1].linkUrl).toBe("https://x.com/b.png");
+  });
+  it("detects wrapped image with empty alt", () => {
+    const note = "[![](https://example.com/cat.png)](https://example.com/cat.png)";
+    const refs = scanNote(note, cfg());
+    expect(refs).toHaveLength(1);
+    expect(refs[0].linkUrl).toBe("https://example.com/cat.png");
+    expect(refs[0].rawMatch).toBe(note);
+  });
+});
+
 describe("scanNote — combined detectors", () => {
   it("yields refs in scan order across detectors", () => {
     const note = [

@@ -81,3 +81,35 @@ describe("runImport — dry run", () => {
     expect(acc.wouldRewrite).toHaveLength(1);
   });
 });
+
+describe("runImport — wrapped image-link collapse", () => {
+  it("collapses [![alt](url)](url) to ![alt](local) end-to-end", async () => {
+    const vault = new FakeVault([{ path: "a.md", content: "[![cat](https://x.com/cat.png)](https://x.com/cat.png)" }]);
+    const backend = fakeBackend();
+    const deps = fakeDeps(vault, backend);
+    const report = await runImport(deps, baseSettings, { dryRun: false });
+    expect(report.downloaded).toBe(1);
+    expect(report.rewritten).toBe(1);
+    expect(vault.files[0].content).toBe("![cat](media/cat.png)");
+  });
+  it("leaves wrapper link untouched when href differs from src", async () => {
+    const note = "[![cat](https://x.com/cat.png)](https://x.com/article)";
+    const vault = new FakeVault([{ path: "a.md", content: note }]);
+    const backend = fakeBackend();
+    const deps = fakeDeps(vault, backend);
+    const report = await runImport(deps, baseSettings, { dryRun: false });
+    expect(report.downloaded).toBe(1);
+    expect(report.rewritten).toBe(1);
+    expect(vault.files[0].content).toBe("[![cat](media/cat.png)](https://x.com/article)");
+  });
+  it("reports collapse in dry-run would-rewrite", async () => {
+    const vault = new FakeVault([{ path: "a.md", content: "[![cat](https://x.com/cat.png)](https://x.com/cat.png)" }]);
+    const backend = fakeBackend();
+    const deps = fakeDeps(vault, backend);
+    const acc = new DryRunAccumulator();
+    await runImport(deps, baseSettings, { dryRun: true }, acc);
+    expect(acc.wouldRewrite).toHaveLength(1);
+    expect(acc.wouldRewrite[0].newUrl).toBe("media/cat.png");
+    expect(acc.wouldRewrite[0].ref.linkUrl).toBe("https://x.com/cat.png");
+  });
+});

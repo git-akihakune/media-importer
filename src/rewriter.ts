@@ -21,7 +21,7 @@ function buildReplacement(ref: MediaRef, newUrl: string): string {
   switch (ref.kind) {
     case "md-image":
     case "md-av": {
-      const altMatch = /^!\[([^\]]*)\]\(/.exec(ref.rawMatch);
+      const altMatch = /^!?\[!\[([^\]]*)\]\(/.exec(ref.rawMatch) ?? /^!\[([^\]]*)\]\(/.exec(ref.rawMatch);
       const alt = altMatch ? altMatch[1] : "";
       const url = newUrl.includes(")") ? `<${newUrl}>` : newUrl;
       return `![${alt}](${url})`;

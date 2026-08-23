@@ -12,6 +12,13 @@ export interface MediaRef {
   rawEnd: number;
   url: string;
   kind: MediaKind;
+  /**
+   * The URL of an enclosing markdown link, when the embed is wrapped as
+   * `[![alt](url)](linkUrl)`. Set to the link's URL when it equals the
+   * embed's `url` (so the rewriter can collapse the wrapper); otherwise
+   * null/undefined (the wrapper, if any, is left untouched).
+   */
+  linkUrl?: string;
 }
 
 export interface Dropped {

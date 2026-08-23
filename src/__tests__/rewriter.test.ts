@@ -116,3 +116,79 @@ describe("rewriteNote — newUrl sanitization", () => {
     expect(r).toBe(`<img src="cdn/a&quot;b.png">`);
   });
 });
+
+describe("rewriteNote — wrapped image-link collapse", () => {
+  const wrappedRef = (note: string, url: string, newUrl: string): Rewrite => ({
+    ref: {
+      notePath: "x.md",
+      rawMatch: note,
+      rawStart: 0,
+      rawEnd: note.length,
+      url,
+      kind: "md-image",
+      linkUrl: url,
+    },
+    newUrl,
+  });
+
+  it("collapses [![alt](url)](url) to ![alt](newUrl)", () => {
+    const note = "[![cat](https://x.com/cat.png)](https://x.com/cat.png)";
+    const r = rewriteNote(note, [wrappedRef(note, "https://x.com/cat.png", "media/cat.png")]);
+    expect(r).toBe("![cat](media/cat.png)");
+  });
+  it("collapses wrapped embed with empty alt", () => {
+    const note = "[![](https://x.com/cat.png)](https://x.com/cat.png)";
+    const r = rewriteNote(note, [wrappedRef(note, "https://x.com/cat.png", "media/cat.png")]);
+    expect(r).toBe("![](media/cat.png)");
+  });
+  it("collapses wrapped av embed", () => {
+    const note = "[![](https://x.com/clip.mp4)](https://x.com/clip.mp4)";
+    const r = rewriteNote(note, [{
+      ref: { notePath: "x.md", rawMatch: note, rawStart: 0, rawEnd: note.length, url: "https://x.com/clip.mp4", kind: "md-av", linkUrl: "https://x.com/clip.mp4" },
+      newUrl: "media/clip.mp4",
+    }]);
+    expect(r).toBe("![](media/clip.mp4)");
+  });
+  it("collapses wrapped embed with title on inner image", () => {
+    const inner = '![cat](https://x.com/cat.png "a cat")';
+    const note = `[${inner}](https://x.com/cat.png)`;
+    const r = rewriteNote(note, [wrappedRef(note, "https://x.com/cat.png", "media/cat.png")]);
+    expect(r).toBe("![cat](media/cat.png)");
+  });
+  it("collapses wrapped embed with title on wrapper link", () => {
+    const note = '[![cat](https://x.com/cat.png)](https://x.com/cat.png "view")';
+    const r = rewriteNote(note, [wrappedRef(note, "https://x.com/cat.png", "media/cat.png")]);
+    expect(r).toBe("![cat](media/cat.png)");
+  });
+  it("collapses wrapped embed with angle-bracket URLs", () => {
+    const note = "[![cat](<https://x.com/cat.png>)](<https://x.com/cat.png>)";
+    const r = rewriteNote(note, [wrappedRef(note, "https://x.com/cat.png", "media/cat.png")]);
+    expect(r).toBe("![cat](media/cat.png)");
+  });
+  it("sanitizes newUrl containing ) in collapsed output", () => {
+    const note = "[![cat](https://x.com/cat.png)](https://x.com/cat.png)";
+    const r = rewriteNote(note, [wrappedRef(note, "https://x.com/cat.png", "media/cat)1.png")]);
+    expect(r).toBe("![cat](<media/cat)1.png>)");
+  });
+  it("collapses two wrapped embeds in the same note", () => {
+    const a = "[![a](https://x.com/a.png)](https://x.com/a.png)";
+    const b = "[![b](https://x.com/b.png)](https://x.com/b.png)";
+    const note = `${a}\n${b}`;
+    const r = rewriteNote(note, [
+      { ref: { notePath: "x.md", rawMatch: a, rawStart: 0, rawEnd: a.length, url: "https://x.com/a.png", kind: "md-image", linkUrl: "https://x.com/a.png" }, newUrl: "media/a.png" },
+      { ref: { notePath: "x.md", rawMatch: b, rawStart: a.length + 1, rawEnd: note.length, url: "https://x.com/b.png", kind: "md-image", linkUrl: "https://x.com/b.png" }, newUrl: "media/b.png" },
+    ]);
+    expect(r).toBe("![a](media/a.png)\n![b](media/b.png)");
+  });
+  it("collapses wrapped embed surrounded by text", () => {
+    const prefix = "before ";
+    const wrapped = "[![cat](https://x.com/cat.png)](https://x.com/cat.png)";
+    const suffix = " after";
+    const note = prefix + wrapped + suffix;
+    const r = rewriteNote(note, [{
+      ref: { notePath: "x.md", rawMatch: wrapped, rawStart: prefix.length, rawEnd: prefix.length + wrapped.length, url: "https://x.com/cat.png", kind: "md-image", linkUrl: "https://x.com/cat.png" },
+      newUrl: "media/cat.png",
+    }]);
+    expect(r).toBe(`${prefix}![cat](media/cat.png)${suffix}`);
+  });
+});
