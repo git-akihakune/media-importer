@@ -12,6 +12,8 @@ export interface WebDAVRequester {
   put(url: string, buf: ArrayBuffer, auth: { username: string; password: string }): Promise<{ ok: boolean; status: number }>;
   head(url: string, auth: { username: string; password: string }): Promise<{ exists: boolean }>;
   test(url: string, auth: { username: string; password: string }): Promise<{ ok: boolean; status: number }>;
+  get(url: string, auth: { username: string; password: string }): Promise<{ ok: boolean; status: number; arrayBuffer: ArrayBuffer }>;
+  delete(url: string, auth: { username: string; password: string }): Promise<{ ok: boolean; status: number }>;
 }
 
 export class WebDAVBackend implements Backend {
@@ -63,5 +65,16 @@ export class WebDAVBackend implements Backend {
     if (status === 404) throw new Error("WebDAV: base URL not found — check baseURL");
     if (status === 0) throw new Error("WebDAV: cannot reach endpoint — check baseURL and network");
     throw new Error(`WebDAV: unexpected status ${status}`);
+  }
+
+  async get(url: string): Promise<ArrayBuffer> {
+    const { ok, status, arrayBuffer } = await this.req.get(url, this.auth());
+    if (!ok) throw new Error(`WebDAV GET failed: ${status}`);
+    return arrayBuffer;
+  }
+
+  async delete(url: string): Promise<void> {
+    const { ok, status } = await this.req.delete(url, this.auth());
+    if (!ok) throw new Error(`WebDAV DELETE failed: ${status}`);
   }
 }

@@ -1,21 +1,35 @@
 import { describe, it, expect, vi } from "vitest";
 import { WebDAVBackend } from "../../storage/webdav";
 
-const makeBackend = (puts: Record<string, ArrayBuffer>, opts: { avoidOverwrite?: boolean; testStatus?: number; testOk?: boolean } = {}) => {
+const makeBackend = (
+  puts: Record<string, ArrayBuffer>,
+  opts: { avoidOverwrite?: boolean; testStatus?: number; testOk?: boolean; getBuf?: ArrayBuffer; getOk?: boolean; getStatus?: number; deleteOk?: boolean; deleteStatus?: number } = {},
+) => {
   const putFn = vi.fn(async (url: string, buf: ArrayBuffer) => {
     puts[url] = buf;
     return { ok: true, status: 201 };
   });
   const headFn = vi.fn(async (url: string) => ({ exists: url in puts }));
   const testFn = vi.fn(async () => ({ ok: opts.testOk ?? true, status: opts.testStatus ?? 200 }));
+  const getFn = vi.fn(async () => ({
+    ok: opts.getOk ?? true,
+    status: opts.getStatus ?? 200,
+    arrayBuffer: opts.getBuf ?? new ArrayBuffer(0),
+  }));
+  const deleteFn = vi.fn(async () => ({
+    ok: opts.deleteOk ?? true,
+    status: opts.deleteStatus ?? 204,
+  }));
   return {
     backend: new WebDAVBackend(
       { baseURL: "https://dav.example.com/media/", username: "u", password: "p", avoidOverwrite: opts.avoidOverwrite ?? false },
-      { put: putFn, head: headFn, test: testFn },
+      { put: putFn, head: headFn, test: testFn, get: getFn, delete: deleteFn },
     ),
     putFn,
     headFn,
     testFn,
+    getFn,
+    deleteFn,
   };
 };
 
@@ -67,6 +81,30 @@ describe("WebDAVBackend", () => {
     it("throws unexpected status on other codes", async () => {
       const { backend } = makeBackend({}, { testOk: false, testStatus: 500 });
       await expect(backend.ping()).rejects.toThrow("WebDAV: unexpected status 500");
+    });
+  });
+
+  describe("get", () => {
+    it("returns arrayBuffer when req.get returns ok", async () => {
+      const buf = new ArrayBuffer(8);
+      const { backend } = makeBackend({}, { getBuf: buf });
+      const result = await backend.get("https://dav.example.com/media/cat.png");
+      expect(result).toBe(buf);
+    });
+    it("throws with status when req.get returns not ok", async () => {
+      const { backend } = makeBackend({}, { getOk: false, getStatus: 404 });
+      await expect(backend.get("https://dav.example.com/media/cat.png")).rejects.toThrow("WebDAV GET failed: 404");
+    });
+  });
+
+  describe("delete", () => {
+    it("resolves when req.delete returns ok", async () => {
+      const { backend } = makeBackend({}, { deleteOk: true });
+      await expect(backend.delete("https://dav.example.com/media/cat.png")).resolves.toBeUndefined();
+    });
+    it("throws with status when req.delete returns not ok", async () => {
+      const { backend } = makeBackend({}, { deleteOk: false, deleteStatus: 403 });
+      await expect(backend.delete("https://dav.example.com/media/cat.png")).rejects.toThrow("WebDAV DELETE failed: 403");
     });
   });
 });

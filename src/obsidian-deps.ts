@@ -48,6 +48,18 @@ export class ObsidianVaultAdapter implements VaultAdapter {
     if (!f) throw new Error(`file not found: ${path}`);
     await this.vault.modify(f, content);
   }
+
+  async readBinary(path: string): Promise<ArrayBuffer> {
+    const f = this.vault.getAbstractFileByPath(path) as TFile | null;
+    if (!f) throw new Error(`file not found: ${path}`);
+    return await this.vault.readBinary(f);
+  }
+
+  async delete(path: string): Promise<void> {
+    const f = this.vault.getAbstractFileByPath(path) as TFile | null;
+    if (!f) throw new Error(`file not found: ${path}`);
+    await (this.vault as unknown as { trashFile: (f: TFile) => Promise<void> }).trashFile(f);
+  }
 }
 
 export class ObsidianFetchRequester implements FetchRequester, HeadRequester {
@@ -122,6 +134,34 @@ export class ObsidianWebDAVRequester implements WebDAVRequester {
           Authorization: "Basic " + base64(`${auth.username}:${auth.password}`),
           Depth: "0",
         },
+      });
+      return { ok: res.status >= 200 && res.status < 300, status: res.status };
+    } catch (e: unknown) {
+      const status = (e as { status?: number })?.status ?? 0;
+      return { ok: false, status };
+    }
+  }
+
+  async get(url: string, auth: { username: string; password: string }): Promise<{ ok: boolean; status: number; arrayBuffer: ArrayBuffer }> {
+    try {
+      const res = await requestUrl({
+        url,
+        method: "GET",
+        headers: { Authorization: "Basic " + base64(`${auth.username}:${auth.password}`) },
+      });
+      return { ok: res.status >= 200 && res.status < 300, status: res.status, arrayBuffer: res.arrayBuffer };
+    } catch (e: unknown) {
+      const status = (e as { status?: number })?.status ?? 0;
+      return { ok: false, status, arrayBuffer: new ArrayBuffer(0) };
+    }
+  }
+
+  async delete(url: string, auth: { username: string; password: string }): Promise<{ ok: boolean; status: number }> {
+    try {
+      const res = await requestUrl({
+        url,
+        method: "DELETE",
+        headers: { Authorization: "Basic " + base64(`${auth.username}:${auth.password}`) },
       });
       return { ok: res.status >= 200 && res.status < 300, status: res.status };
     } catch (e: unknown) {
