@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { scanNote, ScannerConfig } from "../scanner";
+import { scanNote, walkVault, ScannerConfig, VaultAdapter } from "../scanner";
 
 const cfg = (overrides: Partial<ScannerConfig> = {}): ScannerConfig => ({
   mdImage: true,
@@ -214,5 +214,51 @@ describe("scanNote — HTML edge cases", () => {
     const refs = scanNote(note, cfg({ htmlImg: true }));
     expect(refs).toHaveLength(1);
     expect(refs[0].url).toBe("https://example.com/cat.png");
+  });
+});
+
+class FakeVault implements VaultAdapter {
+  constructor(public files: { path: string; content: string }[]) {}
+  async listMarkdownFiles(paths: string[]): Promise<string[]> {
+    if (paths.length === 0) return this.files.map(f => f.path);
+    return this.files
+      .filter(f => paths.some(p => f.path.startsWith(p.replace(/\/$/, "") + "/") || f.path === p))
+      .map(f => f.path);
+  }
+  async read(path: string): Promise<string> {
+    return this.files.find(f => f.path === path)!.content;
+  }
+  async writeBinary(_path: string, _data: ArrayBuffer): Promise<void> {
+    throw new Error("writeBinary not implemented in FakeVault");
+  }
+  async exists(_path: string): Promise<boolean> {
+    throw new Error("exists not implemented in FakeVault");
+  }
+  async listDir(_path: string): Promise<string[]> {
+    throw new Error("listDir not implemented in FakeVault");
+  }
+  async modifyText(_path: string, _content: string): Promise<void> {
+    throw new Error("modifyText not implemented in FakeVault");
+  }
+}
+
+describe("walkVault", () => {
+  it("yields refs stamped with notePath across files", async () => {
+    const vault = new FakeVault([
+      { path: "a.md", content: "![a](https://x.com/a.png)" },
+      { path: "b.md", content: "no media here" },
+      { path: "sub/c.md", content: "![c](https://x.com/c.png)" },
+    ]);
+    const refs = await walkVault(vault, [], cfg());
+    expect(refs.map(r => r.notePath).sort()).toEqual(["a.md", "sub/c.md"]);
+  });
+  it("respects scanPaths filter", async () => {
+    const vault = new FakeVault([
+      { path: "keep/a.md", content: "![a](https://x.com/a.png)" },
+      { path: "drop/b.md", content: "![b](https://x.com/b.png)" },
+    ]);
+    const refs = await walkVault(vault, ["keep"], cfg());
+    expect(refs).toHaveLength(1);
+    expect(refs[0].notePath).toBe("keep/a.md");
   });
 });

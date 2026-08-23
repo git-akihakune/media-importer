@@ -1,5 +1,7 @@
 import { MediaRef, MediaKind } from "./types";
 import { isExternalUrl, hasImageExtension, hasAvExtension } from "./url";
+import { VaultAdapter } from "./vault-adapter";
+export type { VaultAdapter };
 
 export interface ScannerConfig {
   mdImage: boolean;
@@ -60,4 +62,20 @@ export function scanNote(note: string, cfg: ScannerConfig): MediaRef[] {
 
 function push(refs: MediaRef[], url: string, kind: MediaKind, start: number, raw: string): void {
   refs.push({ notePath: "", rawMatch: raw, rawStart: start, rawEnd: start + raw.length, url, kind });
+}
+
+export async function walkVault(
+  vault: VaultAdapter,
+  scanPaths: string[],
+  cfg: ScannerConfig,
+): Promise<MediaRef[]> {
+  const files = await vault.listMarkdownFiles(scanPaths);
+  const all: MediaRef[] = [];
+  for (const path of files) {
+    const content = await vault.read(path);
+    const refs = scanNote(content, cfg);
+    for (const r of refs) r.notePath = path;
+    all.push(...refs);
+  }
+  return all;
 }
