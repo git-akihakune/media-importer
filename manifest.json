@@ -6,5 +6,5 @@
   "description": "Download remote media referenced in your notes and store it locally or on a remote backend (WebDAV, S3).",
   "author": "Your Name",
   "authorUrl": "",
-  "isDesktopOnly": false
+  "isDesktopOnly": true
 }
