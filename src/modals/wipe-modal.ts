@@ -2,6 +2,8 @@ import { App, Modal, ButtonComponent, Setting, Notice } from "obsidian";
 import MediaImporterPlugin from "../main";
 
 export class WipeConfirmModal extends Modal {
+  private countdownInterval: ReturnType<typeof setInterval> | null = null;
+
   constructor(app: App, private plugin: MediaImporterPlugin, private targets: string[]) {
     super(app);
   }
@@ -42,11 +44,13 @@ export class WipeConfirmModal extends Modal {
           secondsLeft--;
           if (secondsLeft <= 0) {
             clearInterval(interval);
+            this.countdownInterval = null;
             b.setButtonText(`Delete ${this.targets.length} files`).setDisabled(false);
           } else {
             b.setButtonText(`Delete ${this.targets.length} files (${secondsLeft})`);
           }
         }, 1000);
+        this.countdownInterval = interval;
         b.onClick(async () => {
           if (secondsLeft > 0) return;
           try {
@@ -62,6 +66,7 @@ export class WipeConfirmModal extends Modal {
   }
 
   onClose(): void {
+    if (this.countdownInterval !== null) clearInterval(this.countdownInterval);
     this.contentEl.empty();
   }
 }
