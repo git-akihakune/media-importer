@@ -1,8 +1,9 @@
 import esbuild from "esbuild";
-import { existsSync, readFileSync } from "fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync } from "fs";
 import path from "path";
 
 const prod = process.argv[2] === "--production";
+const outDir = "build/media-importer";
 
 const cssPlugin = {
   name: "css",
@@ -26,8 +27,15 @@ esbuild
     logLevel: "info",
     sourcemap: prod ? false : "inline",
     treeShaking: true,
-    outfile: "build/media-importer/main.js",
+    outfile: `${outDir}/main.js`,
     minify: prod,
     plugins: [cssPlugin],
+  })
+  .then(() => {
+    mkdirSync(outDir, { recursive: true });
+    copyFileSync("manifest.json", `${outDir}/manifest.json`);
+    if (existsSync("styles.css")) {
+      copyFileSync("styles.css", `${outDir}/styles.css`);
+    }
   })
   .catch(() => process.exit(1));
