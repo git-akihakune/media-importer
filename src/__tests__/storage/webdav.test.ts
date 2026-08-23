@@ -3,7 +3,7 @@ import { WebDAVBackend } from "../../storage/webdav";
 
 const makeBackend = (
   puts: Record<string, ArrayBuffer>,
-  opts: { avoidOverwrite?: boolean; testStatus?: number; testOk?: boolean; getBuf?: ArrayBuffer; getOk?: boolean; getStatus?: number; deleteOk?: boolean; deleteStatus?: number } = {},
+  opts: { avoidOverwrite?: boolean; testStatus?: number; testOk?: boolean; getBuf?: ArrayBuffer; getOk?: boolean; getStatus?: number; deleteOk?: boolean; deleteStatus?: number; mkcolOk?: boolean; mkcolStatus?: number } = {},
 ) => {
   const putFn = vi.fn(async (url: string, buf: ArrayBuffer) => {
     puts[url] = buf;
@@ -20,16 +20,21 @@ const makeBackend = (
     ok: opts.deleteOk ?? true,
     status: opts.deleteStatus ?? 204,
   }));
+  const mkcolFn = vi.fn(async () => ({
+    ok: opts.mkcolOk ?? true,
+    status: opts.mkcolStatus ?? 201,
+  }));
   return {
     backend: new WebDAVBackend(
       { baseURL: "https://dav.example.com/media/", username: "u", password: "p", avoidOverwrite: opts.avoidOverwrite ?? false },
-      { put: putFn, head: headFn, test: testFn, get: getFn, delete: deleteFn },
+      { put: putFn, head: headFn, test: testFn, get: getFn, delete: deleteFn, mkcol: mkcolFn },
     ),
     putFn,
     headFn,
     testFn,
     getFn,
     deleteFn,
+    mkcolFn,
   };
 };
 
@@ -70,9 +75,29 @@ describe("WebDAVBackend", () => {
       const { backend } = makeBackend({}, { testOk: false, testStatus: 401 });
       await expect(backend.ping()).rejects.toThrow("WebDAV: unauthorized — check username/password");
     });
-    it("throws not found on 404", async () => {
-      const { backend } = makeBackend({}, { testOk: false, testStatus: 404 });
-      await expect(backend.ping()).rejects.toThrow("WebDAV: base URL not found — check baseURL");
+    it("throws not found on 404 when MKCOL also fails with 404", async () => {
+      const { backend } = makeBackend({}, { testOk: false, testStatus: 404, mkcolOk: false, mkcolStatus: 409 });
+      await expect(backend.ping()).rejects.toThrow("WebDAV: parent path missing — check baseURL");
+    });
+    it("creates dir on 404 via MKCOL then resolves", async () => {
+      const { backend, mkcolFn } = makeBackend({}, { testOk: false, testStatus: 404, mkcolOk: true, mkcolStatus: 201 });
+      await expect(backend.ping()).resolves.toBeUndefined();
+      expect(mkcolFn).toHaveBeenCalledWith(
+        "https://dav.example.com/media/",
+        { username: "u", password: "p" },
+      );
+    });
+    it("throws unauthorized when MKCOL returns 401", async () => {
+      const { backend } = makeBackend({}, { testOk: false, testStatus: 404, mkcolOk: false, mkcolStatus: 401 });
+      await expect(backend.ping()).rejects.toThrow("WebDAV: unauthorized — check username/password");
+    });
+    it("throws unreachable when MKCOL returns status 0", async () => {
+      const { backend } = makeBackend({}, { testOk: false, testStatus: 404, mkcolOk: false, mkcolStatus: 0 });
+      await expect(backend.ping()).rejects.toThrow("WebDAV: cannot reach endpoint — check baseURL and network");
+    });
+    it("throws on unexpected MKCOL status", async () => {
+      const { backend } = makeBackend({}, { testOk: false, testStatus: 404, mkcolOk: false, mkcolStatus: 403 });
+      await expect(backend.ping()).rejects.toThrow("WebDAV: MKCOL failed with status 403");
     });
     it("throws unreachable on status 0", async () => {
       const { backend } = makeBackend({}, { testOk: false, testStatus: 0 });

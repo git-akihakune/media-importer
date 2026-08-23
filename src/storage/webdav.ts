@@ -14,6 +14,7 @@ export interface WebDAVRequester {
   test(url: string, auth: { username: string; password: string }): Promise<{ ok: boolean; status: number }>;
   get(url: string, auth: { username: string; password: string }): Promise<{ ok: boolean; status: number; arrayBuffer: ArrayBuffer }>;
   delete(url: string, auth: { username: string; password: string }): Promise<{ ok: boolean; status: number }>;
+  mkcol(url: string, auth: { username: string; password: string }): Promise<{ ok: boolean; status: number }>;
 }
 
 export class WebDAVBackend implements Backend {
@@ -62,7 +63,14 @@ export class WebDAVBackend implements Backend {
     const { ok, status } = await this.req.test(this.base(), this.auth());
     if (ok) return;
     if (status === 401) throw new Error("WebDAV: unauthorized — check username/password");
-    if (status === 404) throw new Error("WebDAV: base URL not found — check baseURL");
+    if (status === 404) {
+      const mk = await this.req.mkcol(this.base(), this.auth());
+      if (mk.ok) return;
+      if (mk.status === 401) throw new Error("WebDAV: unauthorized — check username/password");
+      if (mk.status === 409) throw new Error("WebDAV: parent path missing — check baseURL");
+      if (mk.status === 0) throw new Error("WebDAV: cannot reach endpoint — check baseURL and network");
+      throw new Error(`WebDAV: MKCOL failed with status ${mk.status}`);
+    }
     if (status === 0) throw new Error("WebDAV: cannot reach endpoint — check baseURL and network");
     throw new Error(`WebDAV: unexpected status ${status}`);
   }

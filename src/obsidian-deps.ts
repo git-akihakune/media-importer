@@ -169,6 +169,20 @@ export class ObsidianWebDAVRequester implements WebDAVRequester {
       return { ok: false, status };
     }
   }
+
+  async mkcol(url: string, auth: { username: string; password: string }): Promise<{ ok: boolean; status: number }> {
+    try {
+      const res = await requestUrl({
+        url,
+        method: "MKCOL",
+        headers: { Authorization: "Basic " + base64(`${auth.username}:${auth.password}`) },
+      });
+      return { ok: res.status >= 200 && res.status < 300, status: res.status };
+    } catch (e: unknown) {
+      const status = (e as { status?: number })?.status ?? 0;
+      return { ok: false, status };
+    }
+  }
 }
 
 function base64(s: string): string {
