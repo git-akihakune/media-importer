@@ -1,6 +1,7 @@
 import { App, PluginSettingTab, Setting, TextComponent, ToggleComponent, DropdownComponent, ButtonComponent, Notice } from "obsidian";
 import MediaImporterPlugin from "./main";
 import { MediaImporterSettings } from "./settings";
+import { WipeConfirmModal } from "./modals/wipe-modal";
 
 export class MediaImporterSettingTab extends PluginSettingTab {
   constructor(app: App, private plugin: MediaImporterPlugin) {
@@ -138,5 +139,21 @@ export class MediaImporterSettingTab extends PluginSettingTab {
         s.requestTimeoutSec = Number(v) || 30;
         await this.plugin.saveSettings();
       }));
+
+    // ---- Maintenance ----
+    new Setting(containerEl).setName("Maintenance").setHeading();
+    new Setting(containerEl)
+      .setName("Wipe remote data")
+      .setDesc("Delete files uploaded by the plugin from the active backend. Irreversible.")
+      .addButton((b: ButtonComponent) => {
+        b.setButtonText("Wipe…").setClass("mod-warning").onClick(async () => {
+          const targets = await this.plugin.collectWipeTargets();
+          if (targets.length === 0) {
+            new Notice("No files to wipe.");
+            return;
+          }
+          new WipeConfirmModal(this.app, this.plugin, targets).open();
+        });
+      });
   }
 }
