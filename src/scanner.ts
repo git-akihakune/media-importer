@@ -10,6 +10,9 @@ export interface ScannerConfig {
 }
 
 const MD_EMBED_RE = /!\[([^\]]*)\]\(\s*([^\s)]+)\s*(?:"[^"]*")?\s*\)/g;
+const WIKILINK_EMBED_RE = /!\[\[(https?:\/\/[^|\]]+)(?:\|[^\]]*)?\]\]/g;
+const HTML_IMG_RE = /<img\b[^>]*\bsrc\s*=\s*(?:"([^"]+)"|'([^']+)'|([^'">\s]+))[^>]*>/gi;
+const HTML_AV_RE = /<(?:video|audio|source)\b[^>]*\bsrc\s*=\s*(?:"([^"]+)"|'([^']+)'|([^'">\s]+))[^>]*>/gi;
 
 export function scanNote(note: string, cfg: ScannerConfig): MediaRef[] {
   const refs: MediaRef[] = [];
@@ -26,18 +29,35 @@ export function scanNote(note: string, cfg: ScannerConfig): MediaRef[] {
       if (hasAvExtension(url) && cfg.mdAv) kind = "md-av";
       else if (hasImageExtension(url) && cfg.mdImage) kind = "md-image";
       else if (!hasAvExtension(url) && !hasImageExtension(url) && cfg.mdImage) kind = "md-image";
-      if (kind) {
-        refs.push({
-          notePath: "",
-          rawMatch: raw,
-          rawStart: m.index!,
-          rawEnd: m.index! + raw.length,
-          url,
-          kind,
-        });
-      }
+      if (kind) push(refs, url, kind, m.index!, raw);
     }
   }
 
+  if (cfg.wikilink) {
+    for (const m of note.matchAll(WIKILINK_EMBED_RE)) {
+      const url = m[1];
+      if (isExternalUrl(url)) push(refs, url, "wikilink", m.index!, m[0]);
+    }
+  }
+
+  if (cfg.htmlImg) {
+    for (const m of note.matchAll(HTML_IMG_RE)) {
+      const url = m[1] ?? m[2] ?? m[3];
+      if (url && isExternalUrl(url)) push(refs, url, "html-img", m.index!, m[0]);
+    }
+  }
+
+  if (cfg.htmlAv) {
+    for (const m of note.matchAll(HTML_AV_RE)) {
+      const url = m[1] ?? m[2] ?? m[3];
+      if (url && isExternalUrl(url)) push(refs, url, "html-source", m.index!, m[0]);
+    }
+  }
+
+  refs.sort((a, b) => a.rawStart - b.rawStart);
   return refs;
+}
+
+function push(refs: MediaRef[], url: string, kind: MediaKind, start: number, raw: string): void {
+  refs.push({ notePath: "", rawMatch: raw, rawStart: start, rawEnd: start + raw.length, url, kind });
 }
