@@ -42,3 +42,32 @@ describe("filterByRules", () => {
     expect(result.dropped[0].reason).toBe("not-in-allowlist");
   });
 });
+
+import { filterBySize } from "../filter";
+
+interface HeadFn { head(url: string): Promise<{ contentLength: number | null }>; }
+
+describe("filterBySize", () => {
+  it("passes through when sizeLimitMB is null", async () => {
+    const refs = [ref("https://x.com/a.png")];
+    const r = await filterBySize(refs, null, { head: async () => ({ contentLength: 999 }) });
+    expect(r.kept).toHaveLength(1);
+    expect(r.dropped).toHaveLength(0);
+  });
+  it("drops files over the cap", async () => {
+    const refs = [ref("https://x.com/big.png"), ref("https://x.com/small.png")];
+    const head: HeadFn = {
+      head: async (url) => ({ contentLength: url.includes("big") ? 10 * 1024 * 1024 : 1024 }),
+    };
+    const r = await filterBySize(refs, 5, head);
+    expect(r.kept).toHaveLength(1);
+    expect(r.kept[0].url).toContain("small");
+    expect(r.dropped[0].reason).toBe("too-large");
+  });
+  it("keeps when contentLength is unknown (server didn't return it)", async () => {
+    const refs = [ref("https://x.com/mystery.png")];
+    const head: HeadFn = { head: async () => ({ contentLength: null }) };
+    const r = await filterBySize(refs, 5, head);
+    expect(r.kept).toHaveLength(1);
+  });
+});

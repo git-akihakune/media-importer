@@ -48,3 +48,27 @@ export function filterByRules(refs: MediaRef[], rules: FilterRules): FilterResul
   }
   return { kept, dropped };
 }
+
+export interface HeadRequester {
+  head(url: string): Promise<{ contentLength: number | null }>;
+}
+
+export async function filterBySize(
+  refs: MediaRef[],
+  sizeLimitMB: number | null,
+  head: HeadRequester,
+): Promise<FilterResult> {
+  if (sizeLimitMB === null) return { kept: refs, dropped: [] };
+  const cap = sizeLimitMB * 1024 * 1024;
+  const kept: MediaRef[] = [];
+  const dropped: Dropped[] = [];
+  for (const ref of refs) {
+    const { contentLength } = await head.head(ref.url);
+    if (contentLength !== null && contentLength > cap) {
+      dropped.push({ ref, reason: "too-large" });
+    } else {
+      kept.push(ref);
+    }
+  }
+  return { kept, dropped };
+}
