@@ -1,6 +1,18 @@
 # Media Importer
 
-An [Obsidian](https://obsidian.md) plugin that downloads remote media referenced in your notes and stores it locally in your vault — or uploads it to a remote backend (WebDAV or any S3-compatible service).
+<p align="center">
+An <a href="https://obsidian.md">Obsidian</a> plugin that downloads remote media referenced in your notes and stores it locally in your vault — or uploads it to a remote backend (WebDAV or any S3-compatible service).
+</p>
+
+<p align="center">
+<a href="#features">Features</a> ·
+<a href="#commands">Commands</a> ·
+<a href="#settings">Settings</a> ·
+<a href="#installation">Installation</a> ·
+<a href="#development">Development</a>
+</p>
+
+---
 
 ## Features
 
@@ -14,10 +26,10 @@ An [Obsidian](https://obsidian.md) plugin that downloads remote media referenced
   - **Local vault** — saves to your configured attachment folder (default).
   - **WebDAV** — uploads to a WebDAV server, rewrites URL to the public address.
   - **S3-compatible** — uploads to any S3 endpoint (AWS, MinIO, Backblaze B2, Cloudflare R2, …), rewrites to a templated public URL.
-- **Idempotent**: re-runs skip URLs the plugin already produced (the note's content is the source of truth — no external cache).
-- **Dry-run mode**: preview every change before any note is touched or any file is uploaded.
-- **Filtering**: allowlist + denylist by host, optional size limit (MB).
-- **Collision-safe**: downloaded files get a `-1`, `-2`, … suffix if a file with the same name already exists.
+- **Idempotent** — re-runs skip URLs the plugin already produced. The note's content is the source of truth; no external cache.
+- **Dry-run mode** — preview every change before any note is touched or any file is uploaded.
+- **Filtering** — allowlist + denylist by host, optional size limit (MB).
+- **Collision-safe** — downloaded files get a `-1`, `-2`, … suffix if a file with the same name already exists.
 
 ## Commands
 
@@ -47,13 +59,13 @@ An [Obsidian](https://obsidian.md) plugin that downloads remote media referenced
 ### From source
 
 ```bash
-git clone https://github.com/your-name/media-importer
+git clone https://github.com/git-akihakune/media-importer
 cd media-importer
 npm install
 npm run build
 ```
 
-Copy `main.js` and `manifest.json` into your vault's `.obsidian/plugins/media-importer/` directory and enable the plugin.
+Copy `build/media-importer/main.js` and `build/media-importer/manifest.json` into your vault's `.obsidian/plugins/media-importer/` directory and enable the plugin.
 
 ## Development
 
@@ -63,7 +75,3 @@ npm run test      # vitest run
 npm run lint      # eslint
 npm run typecheck # tsc --noEmit
 ```
-
-## License
-
-MIT
