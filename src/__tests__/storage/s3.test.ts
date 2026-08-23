@@ -4,17 +4,14 @@ import { S3Backend, S3Config, S3Client } from "../../storage/s3";
 const mockClient = (
   existing: Set<string>,
   opts: { bucketExists?: boolean; bucketExistsThrow?: string; getObjectBuf?: ArrayBuffer; removeObjectThrow?: string } = {},
-): S3Client & { getObject: ReturnType<typeof vi.fn>; removeObject: ReturnType<typeof vi.fn> } => ({
+): S3Client => ({
   putObject: vi.fn(async (key: string, _buf: ArrayBuffer) => { existing.add(key); }),
   objectExists: vi.fn(async (key: string) => existing.has(key)),
   bucketExists: vi.fn(async () => {
     if (opts.bucketExistsThrow) throw new Error(opts.bucketExistsThrow);
     return opts.bucketExists ?? true;
   }),
-  getObject: vi.fn(async () => {
-    if (opts.removeObjectThrow && false) throw new Error(opts.removeObjectThrow);
-    return opts.getObjectBuf ?? new ArrayBuffer(0);
-  }),
+  getObject: vi.fn(async () => opts.getObjectBuf ?? new ArrayBuffer(0)),
   removeObject: vi.fn(async () => {
     if (opts.removeObjectThrow) throw new Error(opts.removeObjectThrow);
   }),
