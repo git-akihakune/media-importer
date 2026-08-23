@@ -2,15 +2,10 @@ import { Plugin, Notice, Modal } from "obsidian";
 import { MediaImporterSettings, DEFAULT_SETTINGS } from "./settings";
 import { MediaImporterSettingTab } from "./settings-tab";
 import { runImport, ImporterDeps } from "./importer";
-import { Backend } from "./storage/backend";
-import { LocalStorageBackend } from "./storage/local";
-import { WebDAVBackend } from "./storage/webdav";
-import { S3Backend } from "./storage/s3";
+import { buildBackendFromSettings } from "./storage/factory";
 import {
   ObsidianVaultAdapter,
   ObsidianFetchRequester,
-  ObsidianWebDAVRequester,
-  MinioS3Client,
 } from "./obsidian-deps";
 import { DryRunAccumulator, ProgressReporter } from "./progress";
 import { RunReport } from "./types";
@@ -50,14 +45,14 @@ export default class MediaImporterPlugin extends Plugin {
 
   async testActiveBackend(): Promise<void> {
     const vault = this.makeVault();
-    const backend = this.buildBackend(vault);
+    const backend = buildBackendFromSettings(this.resolveSettings(), vault);
     await backend.ping();
   }
 
   private async run(dryRun: boolean) {
     const vault = this.makeVault();
     const fetch = new ObsidianFetchRequester();
-    const backend = this.buildBackend(vault);
+    const backend = buildBackendFromSettings(this.resolveSettings(), vault);
 
     const deps: ImporterDeps = {
       vault,
@@ -103,32 +98,13 @@ export default class MediaImporterPlugin extends Plugin {
     }
   }
 
-  private buildBackend(vault: ObsidianVaultAdapter): Backend {
+  private resolveSettings(): MediaImporterSettings {
     const s = this.settings;
-    switch (s.activeBackend) {
-      case "local": {
-        const folder = s.local.folder ?? (this.app.vault as unknown as { getConfig: (k: string) => string })?.getConfig("attachmentFolderPath") ?? "";
-        return new LocalStorageBackend(vault, { folder });
-      }
-      case "webdav": {
-        const req = new ObsidianWebDAVRequester();
-        return new WebDAVBackend({ ...s.webdav }, req);
-      }
-      case "s3": {
-        const client = new MinioS3Client(
-          {
-            endPoint: s.s3.endpoint,
-            region: s.s3.region,
-            accessKey: s.s3.accessKeyId,
-            secretKey: s.s3.secretAccessKey,
-          },
-          s.s3.bucket,
-        );
-        return new S3Backend({ ...s.s3 }, client);
-      }
-      default:
-        throw new Error(`Unknown backend: ${s.activeBackend}`);
+    if (s.activeBackend === "local" && s.local.folder == null) {
+      const folder = (this.app.vault as unknown as { getConfig: (k: string) => string })?.getConfig("attachmentFolderPath") ?? "";
+      return { ...s, local: { folder } };
     }
+    return s;
   }
 
   private showDryRunModal(acc: DryRunAccumulator) {
