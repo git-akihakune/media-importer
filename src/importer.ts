@@ -8,7 +8,7 @@ import { filterByRules, filterBySize } from "./filter";
 import { Downloader } from "./downloader";
 import { rewriteNote } from "./rewriter";
 import { ProgressReporter, NullProgressReporter } from "./progress";
-import { urlBasename } from "./url";
+import { urlBasename, ensureMediaExt } from "./url";
 import { MediaRef, RunReport, RunContext, Dropped, Failed } from "./types";
 
 export interface ImporterDeps {
@@ -80,7 +80,7 @@ export async function runImport(
           done++;
           continue;
         }
-        const name = urlBasename(ref.url);
+        const name = ensureMediaExt(urlBasename(ref.url), result.contentType);
         let dest: string;
         if (ctx.dryRun) {
           dest = await deps.backend.dryRunDest(name);

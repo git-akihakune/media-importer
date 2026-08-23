@@ -14,17 +14,22 @@ export function isExternalUrl(url: string): boolean {
 }
 
 export function urlBasename(url: string): string {
-  try {
-    const u = new URL(url);
-    const path = u.pathname;
+  const pick = (path: string): string => {
     if (path.endsWith("/")) return "file";
     const last = path.split("/").filter(Boolean).pop();
-    return last ?? "file";
+    if (!last) return "file";
+    try {
+      return decodeURIComponent(last);
+    } catch {
+      return last;
+    }
+  };
+  try {
+    const u = new URL(url);
+    return pick(u.pathname);
   } catch {
     const clean = url.split("?")[0].split("#")[0];
-    if (clean.endsWith("/")) return "file";
-    const last = clean.split("/").filter(Boolean).pop();
-    return last ?? "file";
+    return pick(clean);
   }
 }
 
@@ -46,6 +51,43 @@ export function joinVaultPath(folder: string, name: string): string {
   const f = folder.replace(/^\/+|\/+$/g, "");
   if (!f) return name;
   return `${f}/${name}`;
+}
+
+const CONTENT_TYPE_EXT: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/gif": "gif",
+  "image/webp": "webp",
+  "image/bmp": "bmp",
+  "image/svg+xml": "svg",
+  "image/avif": "avif",
+  "image/x-icon": "ico",
+  "image/tiff": "tiff",
+  "audio/mpeg": "mp3",
+  "audio/ogg": "ogg",
+  "audio/wav": "wav",
+  "audio/flac": "flac",
+  "audio/aac": "aac",
+  "audio/mp4": "m4a",
+  "audio/opus": "opus",
+  "video/mp4": "mp4",
+  "video/webm": "webm",
+  "video/quicktime": "mov",
+  "video/x-msvideo": "avi",
+  "video/x-matroska": "mkv",
+};
+
+export function extForContentType(contentType: string): string | null {
+  if (!contentType) return null;
+  const base = contentType.split(";")[0].trim().toLowerCase();
+  return CONTENT_TYPE_EXT[base] ?? null;
+}
+
+export function ensureMediaExt(name: string, contentType: string): string {
+  if (hasMediaExtension(name)) return name;
+  const ext = extForContentType(contentType);
+  if (!ext) return name;
+  return `${name}.${ext}`;
 }
 
 export function hasImageExtension(name: string): boolean {

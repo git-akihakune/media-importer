@@ -8,6 +8,8 @@ import {
   hasImageExtension,
   hasAvExtension,
   MEDIA_EXTENSIONS,
+  extForContentType,
+  ensureMediaExt,
 } from "../url";
 
 describe("isExternalUrl", () => {
@@ -38,6 +40,12 @@ describe("urlBasename", () => {
   });
   it("returns 'file' when URL has no path", () => {
     expect(urlBasename("https://example.com")).toBe("file");
+  });
+  it("decodes percent-encoded characters", () => {
+    expect(urlBasename("https://example.com/mobile%20game%201.jpeg")).toBe("mobile game 1.jpeg");
+  });
+  it("leaves malformed percent-encoding intact", () => {
+    expect(urlBasename("https://example.com/%E0%A4%A")).toBe("%E0%A4%A");
   });
 });
 
@@ -88,5 +96,36 @@ describe("hasImageExtension / hasAvExtension", () => {
     expect(hasImageExtension("song.mp3")).toBe(false);
     expect(hasAvExtension("song.mp3")).toBe(true);
     expect(hasAvExtension("cat.png")).toBe(false);
+  });
+});
+
+describe("extForContentType", () => {
+  it("maps common content-types", () => {
+    expect(extForContentType("image/png")).toBe("png");
+    expect(extForContentType("image/jpeg")).toBe("jpg");
+    expect(extForContentType("IMAGE/WebP")).toBe("webp");
+    expect(extForContentType("video/mp4")).toBe("mp4");
+  });
+  it("ignores charset/parameters", () => {
+    expect(extForContentType("image/png; charset=utf-8")).toBe("png");
+  });
+  it("returns null for unknown or empty", () => {
+    expect(extForContentType("")).toBeNull();
+    expect(extForContentType("application/json")).toBeNull();
+  });
+});
+
+describe("ensureMediaExt", () => {
+  it("appends extension derived from content-type when missing", () => {
+    expect(ensureMediaExt("kvt8BeT8gH1enUqUZrtx", "image/png")).toBe("kvt8BeT8gH1enUqUZrtx.png");
+    expect(ensureMediaExt("OIP.pYMLjvrQSq-mBRT3FAZ11wHaE8", "image/jpeg")).toBe("OIP.pYMLjvrQSq-mBRT3FAZ11wHaE8.jpg");
+  });
+  it("leaves names with a media extension alone", () => {
+    expect(ensureMediaExt("cat.png", "image/jpeg")).toBe("cat.png");
+    expect(ensureMediaExt("song.MP3", "audio/ogg")).toBe("song.MP3");
+  });
+  it("leaves names alone when content-type is unknown", () => {
+    expect(ensureMediaExt("bar", "application/octet-stream")).toBe("bar");
+    expect(ensureMediaExt("bar", "")).toBe("bar");
   });
 });

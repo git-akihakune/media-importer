@@ -68,6 +68,15 @@ describe("runImport — live run", () => {
     expect(report.failed).toHaveLength(1);
     expect(report.rewritten).toBe(0);
   });
+  it("appends an extension from content-type when URL basename lacks one", async () => {
+    const vault = new FakeVault([{ path: "a.md", content: "![thumb](https://x.com/kvt8BeT8gH1enUqUZrtx)" }]);
+    const backend = fakeBackend();
+    const deps = fakeDeps(vault, backend);
+    const report = await runImport(deps, baseSettings, { dryRun: false });
+    expect(report.downloaded).toBe(1);
+    expect(backend.put).toHaveBeenCalledWith(expect.any(ArrayBuffer), "kvt8BeT8gH1enUqUZrtx.png");
+    expect(vault.files[0].content).toBe("![thumb](media/kvt8BeT8gH1enUqUZrtx.png)");
+  });
 });
 
 describe("runImport — dry run", () => {
