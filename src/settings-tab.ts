@@ -2,6 +2,7 @@ import { App, PluginSettingTab, Setting, TextComponent, ToggleComponent, Dropdow
 import MediaImporterPlugin from "./main";
 import { MediaImporterSettings } from "./settings";
 import { WipeConfirmModal } from "./modals/wipe-modal";
+import { MigrateModal } from "./modals/migrate-modal";
 
 export class MediaImporterSettingTab extends PluginSettingTab {
   constructor(app: App, private plugin: MediaImporterPlugin) {
@@ -153,6 +154,15 @@ export class MediaImporterSettingTab extends PluginSettingTab {
             return;
           }
           new WipeConfirmModal(this.app, this.plugin, targets).open();
+        });
+      });
+
+    new Setting(containerEl)
+      .setName("Migrate to another backend")
+      .setDesc("Copy files from the active backend to another backend and rewrite notes.")
+      .addButton((b: ButtonComponent) => {
+        b.setButtonText("Migrate…").onClick(() => {
+          new MigrateModal(this.app, this.plugin).open();
         });
       });
   }
