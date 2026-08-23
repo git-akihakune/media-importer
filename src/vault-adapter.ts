@@ -5,4 +5,6 @@ export interface VaultAdapter {
   exists(path: string): Promise<boolean>;
   listDir(path: string): Promise<string[]>;
   modifyText(path: string, content: string): Promise<void>;
+  readBinary(path: string): Promise<ArrayBuffer>;
+  delete(path: string): Promise<void>;
 }

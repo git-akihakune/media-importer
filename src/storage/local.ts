@@ -37,4 +37,12 @@ export class LocalStorageBackend implements Backend {
       throw new Error(`Local: folder "${folder}" not found in vault`);
     }
   }
+
+  async get(url: string): Promise<ArrayBuffer> {
+    return await this.vault.readBinary(url);
+  }
+
+  async delete(url: string): Promise<void> {
+    await this.vault.delete(url);
+  }
 }

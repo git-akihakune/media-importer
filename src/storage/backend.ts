@@ -3,6 +3,8 @@ export interface Backend {
   dryRunDest(name: string): Promise<string>;
   selfProduced(url: string): boolean;
   ping(): Promise<void>;
+  get(url: string): Promise<ArrayBuffer>;
+  delete(url: string): Promise<void>;
 }
 
 export type BackendId = "local" | "webdav" | "s3";

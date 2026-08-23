@@ -49,4 +49,14 @@ export class FakeVault implements VaultAdapter {
       this.files.push({ path, content });
     }
   }
+  async readBinary(path: string): Promise<ArrayBuffer> {
+    const buf = this.binaries.get(path);
+    if (buf) return buf;
+    throw new Error(`FakeVault: binary not found: ${path}`);
+  }
+  async delete(path: string): Promise<void> {
+    this.binaries.delete(path);
+    const idx = this.files.findIndex(f => f.path === path);
+    if (idx >= 0) this.files.splice(idx, 1);
+  }
 }

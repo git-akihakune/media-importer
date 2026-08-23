@@ -36,4 +36,24 @@ describe("LocalStorageBackend", () => {
       await expect(b.ping()).rejects.toThrow('Local: folder "media" not found in vault');
     });
   });
+
+  describe("get", () => {
+    it("returns binary from vault via path", async () => {
+      const buf = new ArrayBuffer(8);
+      const vault = new FakeVault([]);
+      vault.binaries.set("media/cat.png", buf);
+      const b = new LocalStorageBackend(vault, { folder: "media" });
+      const result = await b.get("media/cat.png");
+      expect(result).toBe(buf);
+    });
+  });
+
+  describe("delete", () => {
+    it("removes file from vault via path", async () => {
+      const vault = new FakeVault([{ path: "media/cat.png", content: "" }]);
+      const b = new LocalStorageBackend(vault, { folder: "media" });
+      await b.delete("media/cat.png");
+      expect(await vault.exists("media/cat.png")).toBe(false);
+    });
+  });
 });
