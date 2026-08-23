@@ -26,7 +26,7 @@ esbuild
     logLevel: "info",
     sourcemap: prod ? false : "inline",
     treeShaking: true,
-    outfile: "main.js",
+    outfile: "build/media-importer/main.js",
     minify: prod,
     plugins: [cssPlugin],
   })

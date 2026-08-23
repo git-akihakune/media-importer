@@ -9,5 +9,5 @@ module.exports = {
     "no-unused-vars": "off",
     "@typescript-eslint/no-explicit-any": "warn",
   },
-  ignorePatterns: ["main.js", "node_modules", ".git"],
+  ignorePatterns: ["build/", "node_modules", ".git"],
 };
