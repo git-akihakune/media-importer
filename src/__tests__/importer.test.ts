@@ -24,6 +24,8 @@ const fakeBackend = (selfProducedPrefix = "media/"): Backend => ({
   dryRunDest: vi.fn(async (name: string) => `${selfProducedPrefix}${name}`),
   selfProduced: (url: string) => url.startsWith(selfProducedPrefix),
   ping: vi.fn(async () => {}),
+  get: vi.fn(async () => new ArrayBuffer(0)),
+  delete: vi.fn(async () => {}),
 });
 
 const fakeDeps = (vault: VaultAdapter, backend: Backend): ImporterDeps => ({
