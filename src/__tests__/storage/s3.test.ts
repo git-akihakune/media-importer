@@ -1,12 +1,22 @@
 import { describe, it, expect, vi } from "vitest";
 import { S3Backend, S3Config, S3Client } from "../../storage/s3";
 
-const mockClient = (existing: Set<string>, opts: { bucketExists?: boolean; bucketExistsThrow?: string } = {}): S3Client => ({
+const mockClient = (
+  existing: Set<string>,
+  opts: { bucketExists?: boolean; bucketExistsThrow?: string; getObjectBuf?: ArrayBuffer; removeObjectThrow?: string } = {},
+): S3Client & { getObject: ReturnType<typeof vi.fn>; removeObject: ReturnType<typeof vi.fn> } => ({
   putObject: vi.fn(async (key: string, _buf: ArrayBuffer) => { existing.add(key); }),
   objectExists: vi.fn(async (key: string) => existing.has(key)),
   bucketExists: vi.fn(async () => {
     if (opts.bucketExistsThrow) throw new Error(opts.bucketExistsThrow);
     return opts.bucketExists ?? true;
+  }),
+  getObject: vi.fn(async () => {
+    if (opts.removeObjectThrow && false) throw new Error(opts.removeObjectThrow);
+    return opts.getObjectBuf ?? new ArrayBuffer(0);
+  }),
+  removeObject: vi.fn(async () => {
+    if (opts.removeObjectThrow) throw new Error(opts.removeObjectThrow);
   }),
 });
 
@@ -62,6 +72,39 @@ describe("S3Backend", () => {
       const client = mockClient(new Set(), { bucketExistsThrow: "network unreachable" });
       const b = new S3Backend(cfg, client);
       await expect(b.ping()).rejects.toThrow("S3: network unreachable");
+    });
+  });
+
+  describe("get", () => {
+    it("returns arrayBuffer via urlToKey with publicUrlTemplate", async () => {
+      const buf = new ArrayBuffer(8);
+      const client = mockClient(new Set(), { getObjectBuf: buf });
+      const b = new S3Backend(cfg, client);
+      const result = await b.get("https://cdn.example.com/media/notes/cat.png");
+      expect(client.getObject).toHaveBeenCalledWith("notes/cat.png");
+      expect(result).toBe(buf);
+    });
+    it("returns arrayBuffer via urlToKey with endpoint/bucket fallback", async () => {
+      const buf = new ArrayBuffer(8);
+      const client = mockClient(new Set(), { getObjectBuf: buf });
+      const b = new S3Backend({ ...cfg, publicUrlTemplate: "" }, client);
+      const result = await b.get("https://s3.example.com/media/notes/cat.png");
+      expect(client.getObject).toHaveBeenCalledWith("notes/cat.png");
+      expect(result).toBe(buf);
+    });
+  });
+
+  describe("delete", () => {
+    it("calls removeObject via urlToKey", async () => {
+      const client = mockClient(new Set());
+      const b = new S3Backend(cfg, client);
+      await b.delete("https://cdn.example.com/media/notes/cat.png");
+      expect(client.removeObject).toHaveBeenCalledWith("notes/cat.png");
+    });
+    it("throws wrapped error when removeObject fails", async () => {
+      const client = mockClient(new Set(), { removeObjectThrow: "network unreachable" });
+      const b = new S3Backend(cfg, client);
+      await expect(b.delete("https://cdn.example.com/media/notes/cat.png")).rejects.toThrow("network unreachable");
     });
   });
 });

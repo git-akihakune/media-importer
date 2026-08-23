@@ -15,6 +15,8 @@ export interface S3Client {
   putObject(key: string, buf: ArrayBuffer): Promise<void>;
   objectExists(key: string): Promise<boolean>;
   bucketExists(bucket: string): Promise<boolean>;
+  getObject(key: string): Promise<ArrayBuffer>;
+  removeObject(key: string): Promise<void>;
 }
 
 export class S3Backend implements Backend {
@@ -65,6 +67,25 @@ export class S3Backend implements Backend {
     }
     const prefix = this.cfg.publicUrlTemplate.split("{{key}}")[0];
     return url.startsWith(prefix);
+  }
+
+  private urlToKey(url: string): string {
+    if (this.cfg.publicUrlTemplate) {
+      const prefix = this.cfg.publicUrlTemplate.split("{{key}}")[0];
+      if (!url.startsWith(prefix)) throw new Error(`S3: URL ${url} does not match publicUrlTemplate`);
+      return url.slice(prefix.length);
+    }
+    const base = `${this.cfg.endpoint.replace(/\/+$/, "")}/${this.cfg.bucket}/`;
+    if (!url.startsWith(base)) throw new Error(`S3: URL ${url} does not match endpoint/bucket`);
+    return url.slice(base.length);
+  }
+
+  async get(url: string): Promise<ArrayBuffer> {
+    return await this.client.getObject(this.urlToKey(url));
+  }
+
+  async delete(url: string): Promise<void> {
+    await this.client.removeObject(this.urlToKey(url));
   }
 
   async ping(): Promise<void> {

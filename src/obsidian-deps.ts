@@ -203,4 +203,16 @@ export class MinioS3Client implements S3Client {
   async bucketExists(bucket: string): Promise<boolean> {
     return await this.client.bucketExists(bucket);
   }
+  async getObject(key: string): Promise<ArrayBuffer> {
+    const stream = await this.client.getObject(this.bucket, key);
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    const buf = Buffer.concat(chunks);
+    return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+  }
+  async removeObject(key: string): Promise<void> {
+    await this.client.removeObject(this.bucket, key);
+  }
 }
