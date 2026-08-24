@@ -7,9 +7,10 @@ import { readManifestInfo, writeOutputs } from "../../scripts/release-info.mjs";
 
 describe("readManifestInfo", () => {
   it("returns { version, minAppVersion } from the real manifest", () => {
+    const manifest = JSON.parse(readFileSync("manifest.json", "utf8"));
     const info = readManifestInfo("../manifest.json");
-    expect(info.version).toBe("0.1.1");
-    expect(info.minAppVersion).toBe("1.6.6");
+    expect(info.version).toBe(manifest.version);
+    expect(info.minAppVersion).toBe(manifest.minAppVersion);
   });
 
   it("throws on missing version or minAppVersion", () => {
