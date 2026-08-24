@@ -1,6 +1,6 @@
 {
   "name": "media-importer",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Obsidian plugin to download remote media into the vault or to a remote backend.",
   "main": "build/main.js",
   "scripts": {
