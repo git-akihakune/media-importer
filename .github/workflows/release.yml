@@ -43,3 +43,29 @@ jobs:
 
       - name: Build (production)
         run: npm run build
+
+      - name: Read manifest version
+        id: manifest
+        run: node scripts/release-info.mjs
+
+      - name: Determine expected version
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+            echo "tag=v${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            tag="${GITHUB_REF#refs/tags/}"
+            echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+            echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Assert version consistency
+        run: |
+          manifest_version="${{ steps.manifest.outputs.version }}"
+          expected_version="${{ steps.ver.outputs.version }}"
+          if [ "$manifest_version" != "$expected_version" ]; then
+            echo "Mismatch: manifest.json version ($manifest_version) != expected ($expected_version)"
+            exit 1
+          fi
+          echo "Version consistent: $manifest_version"
