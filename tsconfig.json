@@ -15,5 +15,5 @@
     "noEmit": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/**/*.ts", "src/__tests__/**/*.ts", "obsidian.d.ts", "src/electron-shim.d.ts"]
+  "include": ["src/**/*.ts", "src/__tests__/**/*.ts", "obsidian.d.ts", "src/electron-shim.d.ts", "scripts/**/*.d.mts"]
 }
