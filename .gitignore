@@ -3,4 +3,4 @@ build/
 *.log
 .DS_Store
 coverage/
-.vitest-cache/
+.vitest-cache/docs/
