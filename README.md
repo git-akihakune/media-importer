@@ -84,14 +84,14 @@ Releases are automated via the [Release workflow](.github/workflows/release.yml)
 
 1. Bump `version` in `manifest.json` to the new version (e.g. `0.2.0`).
 2. Commit: `git commit -am "chore: bump version to 0.2.0"`.
-3. Tag and push: `git tag v0.2.0 && git push origin v0.2.0`.
+3. Tag and push: `git tag 0.2.0 && git push origin 0.2.0`.
 4. The workflow builds, lints, tests, updates `versions.json`, and publishes a GitHub release with `main.js`, `manifest.json`, and `styles.css` attached.
 
-The tag name **must** match `manifest.json`'s `version` prefixed with `v`, or the workflow will fail.
+The tag name **must** match `manifest.json`'s `version` exactly (no `v` prefix), or the workflow will fail. Obsidian's submission bot requires bare-version tags.
 
 ### Manual release (workflow_dispatch)
 
-From the Actions tab → "Release" workflow → "Run workflow", enter the version (without the `v` prefix). The workflow will create the tag if it doesn't exist, then build and release.
+From the Actions tab → "Release" workflow → "Run workflow", enter the version (e.g. `0.2.0`). The workflow will create the tag if it doesn't exist, then build and release.
 
 ### What the workflow does
 

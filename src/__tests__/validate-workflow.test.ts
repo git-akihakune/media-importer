@@ -51,7 +51,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - '[0-9]*'
 permissions:
   contents: write
 jobs:
@@ -79,7 +79,7 @@ jobs:
     steps:
 ${ALL_STEPS}
 `;
-    expect(validateWorkflow(text)).toEqual({ ok: false, message: "push tags must be ['v*']" });
+    expect(validateWorkflow(text)).toEqual({ ok: false, message: "push tags must be ['[0-9]*']" });
   });
 
   it("returns ok=false for missing contents:write permission", () => {
@@ -88,7 +88,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - '[0-9]*'
   workflow_dispatch:
 permissions: {}
 jobs:
@@ -106,7 +106,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - '[0-9]*'
   workflow_dispatch:
 permissions:
   contents: write
@@ -126,7 +126,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - '[0-9]*'
   workflow_dispatch:
 permissions:
   contents: write
@@ -162,7 +162,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - '[0-9]*'
   workflow_dispatch:
 permissions:
   contents: write

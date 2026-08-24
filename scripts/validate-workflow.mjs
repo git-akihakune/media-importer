@@ -41,9 +41,9 @@ export function validateWorkflow(text) {
   if (
     !Array.isArray(wf.on.push?.tags) ||
     wf.on.push.tags.length !== 1 ||
-    wf.on.push.tags[0] !== "v*"
+    wf.on.push.tags[0] !== "[0-9]*"
   ) {
-    return { ok: false, message: "push tags must be ['v*']" };
+    return { ok: false, message: "push tags must be ['[0-9]*']" };
   }
   if (wf.permissions?.contents !== "write") {
     return { ok: false, message: "contents:write permission missing" };

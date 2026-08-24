@@ -3,11 +3,11 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - '[0-9]*'
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to release (must match manifest.json version, without leading v)'
+        description: 'Version to release (must match manifest.json version)'
         required: true
         type: string
 
@@ -53,10 +53,10 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
-            echo "tag=v${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+            echo "tag=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
           else
             tag="${GITHUB_REF#refs/tags/}"
-            echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+            echo "version=${tag}" >> "$GITHUB_OUTPUT"
             echo "tag=$tag" >> "$GITHUB_OUTPUT"
           fi
 
