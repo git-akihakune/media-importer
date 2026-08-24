@@ -71,25 +71,12 @@ jobs:
           echo "Version consistent: $manifest_version"
 
       - name: Update versions.json
-        if: steps.ver.outputs.version != ''
-        run: |
-          version="${{ steps.ver.outputs.version }}"
-          min_app_version="${{ steps.manifest.outputs.min_app_version }}"
-          node -e "
-            const fs = require('fs');
-            const path = 'versions.json';
-            const data = JSON.parse(fs.readFileSync(path, 'utf8'));
-            if (data['${version}']) {
-              console.log('versions.json already has ${version}, skipping');
-              process.exit(0);
-            }
-            data['${version}'] = '${min_app_version}';
-            fs.writeFileSync(path, JSON.stringify(data, null, 2) + '\n');
-            console.log('Added ${version} -> ${min_app_version} to versions.json');
-          "
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          MIN_APP_VERSION: ${{ steps.manifest.outputs.min_app_version }}
+        run: node scripts/update-versions.mjs
 
       - name: Commit versions.json
-        if: steps.ver.outputs.version != ''
         run: |
           if [ -n "$(git status --porcelain versions.json)" ]; then
             git config user.name "github-actions[bot]"
