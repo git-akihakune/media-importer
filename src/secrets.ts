@@ -6,8 +6,8 @@ import { SecretStore } from "./secret-store";
  * with {@link SecretStore}; only these IDs are ever read or written.
  */
 export const SECRET_KEYS = {
-  webdavPassword: "media-importer.webdav.password",
-  s3SecretAccessKey: "media-importer.s3.secret-access-key",
+  webdavPassword: "media-importer-webdav-password",
+  s3SecretAccessKey: "media-importer-s3-secret-access-key",
 } as const;
 
 export type SecretId = typeof SECRET_KEYS[keyof typeof SECRET_KEYS];

@@ -309,9 +309,12 @@ export class ObsidianSecretStorage implements SecretStore {
 export class SafeStorageSecretStore implements SecretStore {
   private electron: ElectronModule;
   private bag: Map<string, string> = new Map();
+  /** Whether the OS-backed keychain is actually available. */
+  readonly encryptionAvailable: boolean;
 
   constructor(electron: ElectronModule, initial: Record<string, string> = {}) {
     this.electron = electron;
+    this.encryptionAvailable = electron.safeStorage.isEncryptionAvailable();
     for (const [id, b64] of Object.entries(initial)) {
       if (b64) this.bag.set(id, b64);
     }
@@ -340,9 +343,15 @@ export class SafeStorageSecretStore implements SecretStore {
     return [...this.bag.keys()];
   }
 
-  /** Snapshot the current secrets as base64 ciphertext for persistence. */
+  /**
+   * Snapshot the current secrets as base64 ciphertext for persistence.
+   * Includes a `__encrypted` sentinel indicating whether OS-backed
+   * encryption was actually available when the ciphertext was produced
+   * (`"true"` / `"false"`). When false, the "ciphertext" is a reversible
+   * encoding with a hardcoded key — consumers can surface a warning.
+   */
   snapshot(): Record<string, string> {
-    return Object.fromEntries(this.bag);
+    return { ...Object.fromEntries(this.bag), __encrypted: this.encryptionAvailable ? "true" : "false" };
   }
 
   private encrypt(plain: string): string {
@@ -362,11 +371,18 @@ export class SafeStorageSecretStore implements SecretStore {
  *   2. Electron `safeStorage` — encrypted-at-rest fallback.
  *   3. {@link InMemorySecretStore} — last resort (volatile, tests).
  *
+ * When upgrading from Obsidian <1.11.4 (which used `SafeStorageSecretStore`)
+ * to 1.11.4+ (which uses `ObsidianSecretStorage`), any secrets previously
+ * encrypted in the `persistedSecrets` bag are decrypted and written to the
+ * new Obsidian store before the bag is discarded. This prevents silent
+ * credential loss on Obsidian upgrade.
+ *
  * @param app Obsidian app instance, or `null` in test contexts.
  * @param persistedSecrets The `__secrets__` blob previously written by
  *   {@link SafeStorageSecretStore}, for restoring an existing
- *   `SafeStorageSecretStore` across reloads. Ignored when the Obsidian or
- *   in-memory store is selected.
+ *   `SafeStorageSecretStore` across reloads, or migrating to
+ *   `ObsidianSecretStorage` on Obsidian upgrade. Ignored when the in-memory
+ *   store is selected.
  */
 export async function createSecretStore(
   app: App | null,
@@ -376,7 +392,21 @@ export async function createSecretStore(
   if (app) {
     const storage = (app as unknown as { secretStorage?: { setSecret(id: string, secret: string): void; getSecret(id: string): string | null; listSecrets(): string[] } }).secretStorage;
     if (storage && typeof storage.setSecret === "function") {
-      return new ObsidianSecretStorage(app);
+      const store = new ObsidianSecretStorage(app);
+      // Store-switch migration: if a previous run used SafeStorageSecretStore
+      // (Obsidian <1.11.4), decrypt the old ciphertext and write to the new
+      // OS-backed store before the bag is discarded by dataToPersist.
+      if (persistedSecrets && Object.keys(persistedSecrets).length > 0) {
+        const electron = await loadElectron();
+        if (electron) {
+          const old = new SafeStorageSecretStore(electron, persistedSecrets);
+          for (const id of await old.list()) {
+            const val = await old.get(id);
+            if (val) await store.set(id, val);
+          }
+        }
+      }
+      return store;
     }
   }
 

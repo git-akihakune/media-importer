@@ -31,9 +31,11 @@ export default class MediaImporterPlugin extends Plugin {
   settings!: MediaImporterSettings;
   private secretStore!: SecretStore;
   /**
-   * In-memory cache of the resolved secrets. Refreshed from
-   * {@link secretStore} on load and after every settings-tab save of a
-   * secret field. The pipeline reads from this, never from disk.
+   * Display-only cache of the resolved secrets. Refreshed from
+   * {@link secretStore} on load, after `setSecret`, and when the settings tab
+   * requests `loadSecretsForDisplay`. Backend-building methods do NOT read
+   * this — they call `resolveBackendConfig()` which always loads fresh from
+   * the store to avoid race conditions with in-flight `setSecret` calls.
    */
   private secrets: Secrets = { ...DEFAULT_SECRETS };
 
@@ -60,14 +62,13 @@ export default class MediaImporterPlugin extends Plugin {
     this.secretStore = await createSecretStore(this.app, persistedSecrets);
 
     // One-shot migration of any pre-1.0.0 plaintext credentials.
-    const { migrated, data } = await migratePlaintextSecrets(raw as Parameters<typeof migratePlaintextSecrets>[0], this.secretStore);
-    if (migrated) await this.persistRaw(data);
+    const { data } = await migratePlaintextSecrets(raw as Parameters<typeof migratePlaintextSecrets>[0], this.secretStore);
 
     this.settings = mergeSettings(data as Record<string, unknown>);
     this.secrets = await loadSecrets(this.secretStore);
 
-    // Re-persist to normalise: strip __secrets__ from data.json when using a
-    // non-safeStorage backend, or refresh it when using safeStorage.
+    // Persist the normalised state: clean data.json with secrets stripped,
+    // plus refreshed __secrets__ bag when using SafeStorageSecretStore.
     await this.persistRaw(this.dataToPersist());
   }
 
@@ -99,9 +100,8 @@ export default class MediaImporterPlugin extends Plugin {
   }
 
   private dataToPersist(): Record<string, unknown> {
-    const plain = this.settings as unknown as Record<string, unknown>;
-    delete plain[SECRETS_DATA_KEY];
-    const data: Record<string, unknown> = { ...plain };
+    const data: Record<string, unknown> = { ...this.settings as unknown as Record<string, unknown> };
+    delete data[SECRETS_DATA_KEY];
     if (this.secretStore instanceof SafeStorageSecretStore) {
       data[SECRETS_DATA_KEY] = this.secretStore.snapshot();
     }
@@ -230,6 +230,8 @@ function extractSecretsBag(raw: Record<string, unknown>): Record<string, string>
   if (bag && typeof bag === "object" && !Array.isArray(bag)) {
     const out: Record<string, string> = {};
     for (const [k, v] of Object.entries(bag as Record<string, unknown>)) {
+      // Skip the __encrypted sentinel — it's metadata, not a secret.
+      if (k === "__encrypted") continue;
       if (typeof v === "string") out[k] = v;
     }
     return out;
@@ -239,12 +241,14 @@ function extractSecretsBag(raw: Record<string, unknown>): Record<string, string>
 
 /**
  * Merge raw data.json content with {@link DEFAULT_SETTINGS}, dropping any
- * legacy secret fields that may remain so they don't leak back into memory.
+ * legacy secret fields and the `__secrets__` ciphertext bag so they don't
+ * leak back into the in-memory settings object.
  */
 function mergeSettings(raw: Record<string, unknown>): MediaImporterSettings {
   const merged = Object.assign({}, DEFAULT_SETTINGS, raw) as MediaImporterSettings & {
     webdav?: { password?: string };
     s3?: { secretAccessKey?: string };
+    __secrets__?: unknown;
   };
   if (merged.webdav && typeof merged.webdav.password === "string") {
     merged.webdav = { baseURL: merged.webdav.baseURL, username: merged.webdav.username, avoidOverwrite: merged.webdav.avoidOverwrite };
@@ -252,5 +256,6 @@ function mergeSettings(raw: Record<string, unknown>): MediaImporterSettings {
   if (merged.s3 && typeof merged.s3.secretAccessKey === "string") {
     merged.s3 = { endpoint: merged.s3.endpoint, region: merged.s3.region, bucket: merged.s3.bucket, accessKeyId: merged.s3.accessKeyId, keyPrefix: merged.s3.keyPrefix, publicUrlTemplate: merged.s3.publicUrlTemplate };
   }
+  delete merged.__secrets__;
   return merged;
 }

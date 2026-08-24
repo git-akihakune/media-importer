@@ -9,6 +9,14 @@ import {
 } from "../secrets";
 import { DEFAULT_SETTINGS } from "../settings";
 
+describe("SECRET_KEYS", () => {
+  it("IDs are lowercase alphanumeric with dashes (Obsidian SecretStorage requirement)", () => {
+    for (const id of Object.values(SECRET_KEYS)) {
+      expect(id).toMatch(/^[a-z0-9-]+$/);
+    }
+  });
+});
+
 describe("loadSecrets", () => {
   it("returns empty strings when the store is empty", async () => {
     const secrets = await loadSecrets(new InMemorySecretStore());

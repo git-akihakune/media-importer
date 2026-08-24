@@ -6,6 +6,8 @@ import { MigrateModal } from "./modals/migrate-modal";
 import { SECRET_KEYS, Secrets } from "./secrets";
 
 export class MediaImporterSettingTab extends PluginSettingTab {
+  private renderToken = 0;
+
   constructor(app: App, private plugin: MediaImporterPlugin) {
     super(app, plugin);
   }
@@ -14,7 +16,9 @@ export class MediaImporterSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     const s = this.plugin.settings;
     containerEl.empty();
+    const token = ++this.renderToken;
     void this.plugin.loadSecretsForDisplay().then((secrets) => {
+      if (token !== this.renderToken) return;
       this.renderBody(s, secrets);
     });
   }
@@ -130,8 +134,8 @@ export class MediaImporterSettingTab extends PluginSettingTab {
       new Setting(containerEl).setName("Username").addText((t: TextComponent) => t.setValue(s.webdav.username).onChange(async (v: string) => { s.webdav.username = v; await this.plugin.saveSettings(); }));
       new Setting(containerEl).setName("Password").setDesc("Stored in your OS keychain via Obsidian's secret storage.").addText((t: TextComponent) => {
         t.inputEl.type = "password";
-        t.setValue(secrets.webdavPassword);
-        t.setPlaceholder(secrets.webdavPassword ? "••••••••" : "");
+        t.setValue("");
+        t.setPlaceholder(secrets.webdavPassword ? "•••••••• (enter new value to change)" : "");
         t.onChange(async (v: string) => { await this.plugin.setSecret(SECRET_KEYS.webdavPassword, v); });
       });
       new Setting(containerEl).setName("Avoid overwrite").addToggle((t: ToggleComponent) => t.setValue(s.webdav.avoidOverwrite).onChange(async (v: boolean) => { s.webdav.avoidOverwrite = v; await this.plugin.saveSettings(); }));
@@ -142,8 +146,8 @@ export class MediaImporterSettingTab extends PluginSettingTab {
       new Setting(containerEl).setName("Access key ID").addText((t: TextComponent) => t.setValue(s.s3.accessKeyId).onChange(async (v: string) => { s.s3.accessKeyId = v; await this.plugin.saveSettings(); }));
       new Setting(containerEl).setName("Secret access key").setDesc("Stored in your OS keychain via Obsidian's secret storage.").addText((t: TextComponent) => {
         t.inputEl.type = "password";
-        t.setValue(secrets.s3SecretAccessKey);
-        t.setPlaceholder(secrets.s3SecretAccessKey ? "••••••••" : "");
+        t.setValue("");
+        t.setPlaceholder(secrets.s3SecretAccessKey ? "•••••••• (enter new value to change)" : "");
         t.onChange(async (v: string) => { await this.plugin.setSecret(SECRET_KEYS.s3SecretAccessKey, v); });
       });
       new Setting(containerEl).setName("Key prefix").addText((t: TextComponent) => t.setValue(s.s3.keyPrefix).onChange(async (v: string) => { s.s3.keyPrefix = v; await this.plugin.saveSettings(); }));
