@@ -15,6 +15,7 @@ export class Vault {
   getConfig(_key: string): string { return ""; }
   adapter = { list: async (_p: string) => ({ files: [] as string[], folders: [] as string[] }) };
 }
+export const Platform = { isDesktop: true, isMobile: false, isMacOS: false, isWin: false, isLinux: false };
 export interface RequestUrlParam {
   url: string;
   method?: string;

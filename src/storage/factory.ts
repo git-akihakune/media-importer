@@ -4,7 +4,7 @@ import { VaultAdapter } from "../vault-adapter";
 import { LocalStorageBackend } from "./local";
 import { WebDAVBackend } from "./webdav";
 import { S3Backend } from "./s3";
-import { ObsidianWebDAVRequester, MinioS3Client } from "../obsidian-deps";
+import { ObsidianWebDAVRequester, createS3Client } from "../obsidian-deps";
 import { BackendConfig } from "../secrets";
 
 /**
@@ -29,9 +29,9 @@ export function buildBackendFromSettings(
       return new WebDAVBackend(cfg.webdav, req);
     }
     case "s3": {
-      const client = new MinioS3Client(
+      const client = createS3Client(
         {
-          endPoint: cfg.s3.endpoint,
+          endpoint: cfg.s3.endpoint,
           region: cfg.s3.region,
           accessKey: cfg.s3.accessKeyId,
           secretKey: cfg.s3.secretAccessKey,

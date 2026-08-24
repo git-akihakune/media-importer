@@ -4,8 +4,8 @@ import { FetchRequester } from "./downloader";
 import { HeadRequester } from "./filter";
 import { WebDAVRequester } from "./storage/webdav";
 import { S3Client } from "./storage/s3";
+import { HttpRequestS3Client, HttpExecutor } from "./storage/s3-client";
 import { SecretStore, InMemorySecretStore } from "./secret-store";
-import { Client as MinioClient } from "minio";
 
 // Electron's `safeStorage` is available in the desktop runtime but not at
 // type-check/test time (it is provided by the host, not an npm dep).
@@ -210,46 +210,42 @@ function base64(s: string): string {
   return Buffer.from(s, "utf8").toString("base64");
 }
 
-export class MinioS3Client implements S3Client {
-  private client: MinioClient;
-  constructor(
-    cfg: { endPoint: string; region: string; accessKey: string; secretKey: string; useSSL?: boolean },
-    private bucket: string,
-  ) {
-    this.client = new MinioClient({
-      endPoint: cfg.endPoint.replace(/^https?:\/\//, ""),
-      region: cfg.region,
-      accessKey: cfg.accessKey,
-      secretKey: cfg.secretKey,
-      useSSL: cfg.useSSL ?? cfg.endPoint.startsWith("https"),
-    });
+/**
+ * {@link HttpExecutor} backed by Obsidian's `requestUrl`. Used by
+ * {@link HttpRequestS3Client} for S3 REST calls so the production bundle
+ * contains no `fs`/`stream`/`http` imports (the `minio` package pulled
+ * those in via file-path overloads we never used).
+ */
+export class ObsidianHttpExecutor implements HttpExecutor {
+  async request(opts: {
+    url: string;
+    method: string;
+    headers: Record<string, string>;
+    body?: string | ArrayBuffer;
+    throw?: boolean;
+  }): Promise<{ status: number; headers: Record<string, string>; arrayBuffer: ArrayBuffer }> {
+    const params: RequestUrlParam = {
+      url: opts.url,
+      method: opts.method,
+      headers: opts.headers,
+      body: opts.body,
+      throw: false,
+    };
+    const res = await requestUrl(params);
+    return { status: res.status, headers: res.headers, arrayBuffer: res.arrayBuffer };
   }
-  async putObject(key: string, buf: ArrayBuffer): Promise<void> {
-    await this.client.putObject(this.bucket, key, Buffer.from(buf));
-  }
-  async objectExists(key: string): Promise<boolean> {
-    try {
-      await this.client.statObject(this.bucket, key);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-  async bucketExists(bucket: string): Promise<boolean> {
-    return await this.client.bucketExists(bucket);
-  }
-  async getObject(key: string): Promise<ArrayBuffer> {
-    const stream = await this.client.getObject(this.bucket, key);
-    const chunks: Buffer[] = [];
-    for await (const chunk of stream as AsyncIterable<unknown>) {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array));
-    }
-    const buf = Buffer.concat(chunks);
-    return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
-  }
-  async removeObject(key: string): Promise<void> {
-    await this.client.removeObject(this.bucket, key);
-  }
+}
+
+/**
+ * S3 client constructor exported for {@link buildBackendFromSettings}.
+ * Signs each request with AWS Signature V4 and sends it through
+ * {@link ObsidianHttpExecutor} (Obsidian's `requestUrl`).
+ */
+export function createS3Client(
+  cfg: { endpoint: string; region: string; accessKey: string; secretKey: string },
+  bucket: string,
+): S3Client {
+  return new HttpRequestS3Client(cfg, bucket, new ObsidianHttpExecutor());
 }
 
 // ---------------------------------------------------------------------------
