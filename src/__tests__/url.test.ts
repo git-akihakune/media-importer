@@ -10,6 +10,7 @@ import {
   MEDIA_EXTENSIONS,
   extForContentType,
   ensureMediaExt,
+  isMediaContentType,
 } from "../url";
 
 describe("isExternalUrl", () => {
@@ -127,5 +128,22 @@ describe("ensureMediaExt", () => {
   it("leaves names alone when content-type is unknown", () => {
     expect(ensureMediaExt("bar", "application/octet-stream")).toBe("bar");
     expect(ensureMediaExt("bar", "")).toBe("bar");
+  });
+});
+
+describe("isMediaContentType", () => {
+  it("returns true for known image/audio/video content-types", () => {
+    expect(isMediaContentType("image/png")).toBe(true);
+    expect(isMediaContentType("image/jpeg")).toBe(true);
+    expect(isMediaContentType("video/mp4")).toBe(true);
+    expect(isMediaContentType("audio/mpeg")).toBe(true);
+  });
+  it("ignores parameters", () => {
+    expect(isMediaContentType("image/png; charset=utf-8")).toBe(true);
+  });
+  it("returns false for non-media content-types and empty", () => {
+    expect(isMediaContentType("text/html")).toBe(false);
+    expect(isMediaContentType("application/json")).toBe(false);
+    expect(isMediaContentType("")).toBe(false);
   });
 });

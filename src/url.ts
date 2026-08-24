@@ -83,6 +83,10 @@ export function extForContentType(contentType: string): string | null {
   return CONTENT_TYPE_EXT[base] ?? null;
 }
 
+export function isMediaContentType(contentType: string): boolean {
+  return extForContentType(contentType) !== null;
+}
+
 export function ensureMediaExt(name: string, contentType: string): string {
   if (hasMediaExtension(name)) return name;
   const ext = extForContentType(contentType);

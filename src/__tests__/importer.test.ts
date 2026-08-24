@@ -77,6 +77,17 @@ describe("runImport — live run", () => {
     expect(backend.put).toHaveBeenCalledWith(expect.any(ArrayBuffer), "kvt8BeT8gH1enUqUZrtx.png");
     expect(vault.files[0].content).toBe("![thumb](media/kvt8BeT8gH1enUqUZrtx.png)");
   });
+  it("skips non-media responses (e.g. YouTube watch page) without storing or rewriting", async () => {
+    const vault = new FakeVault([{ path: "a.md", content: "![vid](https://www.youtube.com/watch?v=UkENNPTPgXY)" }]);
+    const backend = fakeBackend();
+    const deps = fakeDeps(vault, backend);
+    deps.fetch.fetch = vi.fn(async () => ({ ok: true, status: 200, arrayBuffer: async () => new ArrayBuffer(4), contentType: "text/html; charset=utf-8" }));
+    const report = await runImport(deps, baseSettings, { dryRun: false });
+    expect(backend.put).not.toHaveBeenCalled();
+    expect(report.downloaded).toBe(0);
+    expect(report.rewritten).toBe(0);
+    expect(vault.files[0].content).toBe("![vid](https://www.youtube.com/watch?v=UkENNPTPgXY)");
+  });
 });
 
 describe("runImport — dry run", () => {

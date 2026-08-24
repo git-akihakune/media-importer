@@ -23,7 +23,7 @@ export interface MediaRef {
 
 export interface Dropped {
   ref: MediaRef;
-  reason: "denylist" | "not-in-allowlist" | "too-large" | "already-local" | "unknown";
+  reason: "denylist" | "not-in-allowlist" | "too-large" | "already-local" | "non-media" | "unknown";
 }
 
 export interface Failed {

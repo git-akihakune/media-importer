@@ -8,7 +8,7 @@ import { filterByRules, filterBySize } from "./filter";
 import { Downloader } from "./downloader";
 import { rewriteNote } from "./rewriter";
 import { ProgressReporter, NullProgressReporter } from "./progress";
-import { urlBasename, ensureMediaExt } from "./url";
+import { urlBasename, ensureMediaExt, isMediaContentType } from "./url";
 import { MediaRef, RunReport, RunContext, Dropped, Failed } from "./types";
 
 export interface ImporterDeps {
@@ -76,6 +76,13 @@ export async function runImport(
         if (result === null) {
           failed.push({ ref, error: "fetch failed" });
           progress.reportFailed(ref, "fetch failed");
+          noteFailed = true;
+          done++;
+          continue;
+        }
+        if (!ctx.dryRun && !isMediaContentType(result.contentType)) {
+          failed.push({ ref, error: `non-media content-type: ${result.contentType || "(none)"}` });
+          progress.reportDropped(ref, "non-media");
           noteFailed = true;
           done++;
           continue;
