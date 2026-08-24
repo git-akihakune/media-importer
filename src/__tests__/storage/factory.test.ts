@@ -4,29 +4,35 @@ import { LocalStorageBackend } from "../../storage/local";
 import { WebDAVBackend } from "../../storage/webdav";
 import { S3Backend } from "../../storage/s3";
 import { FakeVault } from "../helpers/fake-vault";
-import { DEFAULT_SETTINGS } from "../../settings";
+import { DEFAULT_SETTINGS, MediaImporterSettings } from "../../settings";
+import { DEFAULT_SECRETS, resolveBackendConfig } from "../../secrets";
 
 describe("buildBackendFromSettings", () => {
   const vault = new FakeVault([]);
   it("returns LocalStorageBackend for activeBackend=local", () => {
-    const b = buildBackendFromSettings({ ...DEFAULT_SETTINGS, activeBackend: "local" }, vault);
+    const cfg = resolveBackendConfig(DEFAULT_SETTINGS, DEFAULT_SECRETS);
+    const b = buildBackendFromSettings({ ...DEFAULT_SETTINGS, activeBackend: "local" }, cfg, vault);
     expect(b).toBeInstanceOf(LocalStorageBackend);
   });
   it("returns WebDAVBackend for activeBackend=webdav", () => {
-    const b = buildBackendFromSettings({ ...DEFAULT_SETTINGS, activeBackend: "webdav" }, vault);
+    const cfg = resolveBackendConfig(DEFAULT_SETTINGS, DEFAULT_SECRETS);
+    const b = buildBackendFromSettings({ ...DEFAULT_SETTINGS, activeBackend: "webdav" }, cfg, vault);
     expect(b).toBeInstanceOf(WebDAVBackend);
   });
   it("returns S3Backend for activeBackend=s3", () => {
-    const s: typeof DEFAULT_SETTINGS = {
+    const s: MediaImporterSettings = {
       ...DEFAULT_SETTINGS,
       activeBackend: "s3",
-      s3: { ...DEFAULT_SETTINGS.s3, endpoint: "https://s3.example.com", region: "us-east-1", bucket: "media", accessKeyId: "k", secretAccessKey: "s" },
+      s3: { ...DEFAULT_SETTINGS.s3, endpoint: "https://s3.example.com", region: "us-east-1", bucket: "media", accessKeyId: "k" },
     };
-    const b = buildBackendFromSettings(s, vault);
+    const secrets = { ...DEFAULT_SECRETS, s3SecretAccessKey: "s" };
+    const cfg = resolveBackendConfig(s, secrets);
+    const b = buildBackendFromSettings(s, cfg, vault);
     expect(b).toBeInstanceOf(S3Backend);
   });
   it("throws on unknown backend id", () => {
     const s = { ...DEFAULT_SETTINGS, activeBackend: "bogus" as never };
-    expect(() => buildBackendFromSettings(s, vault)).toThrow("Unknown backend: bogus");
+    const cfg = resolveBackendConfig(s, DEFAULT_SECRETS);
+    expect(() => buildBackendFromSettings(s, cfg, vault)).toThrow("Unknown backend: bogus");
   });
 });

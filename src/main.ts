@@ -6,6 +6,8 @@ import { buildBackendFromSettings } from "./storage/factory";
 import {
   ObsidianVaultAdapter,
   ObsidianFetchRequester,
+  createSecretStore,
+  SafeStorageSecretStore,
 } from "./obsidian-deps";
 import { DryRunAccumulator, ProgressReporter } from "./progress";
 import { RunReport } from "./types";
@@ -13,9 +15,27 @@ import { urlBasename } from "./url";
 import { wipeBackend, migrateBackend, WipeReport, MigrateReport } from "./ops";
 import { Backend } from "./storage/backend";
 import { walkVault, ScannerConfig } from "./scanner";
+import { SecretStore } from "./secret-store";
+import {
+  Secrets,
+  DEFAULT_SECRETS,
+  loadSecrets,
+  migratePlaintextSecrets,
+  resolveBackendConfig,
+  BackendConfig,
+} from "./secrets";
+
+const SECRETS_DATA_KEY = "__secrets__";
 
 export default class MediaImporterPlugin extends Plugin {
   settings!: MediaImporterSettings;
+  private secretStore!: SecretStore;
+  /**
+   * In-memory cache of the resolved secrets. Refreshed from
+   * {@link secretStore} on load and after every settings-tab save of a
+   * secret field. The pipeline reads from this, never from disk.
+   */
+  private secrets: Secrets = { ...DEFAULT_SECRETS };
 
   async onload() {
     await this.loadSettings();
@@ -35,38 +55,84 @@ export default class MediaImporterPlugin extends Plugin {
   }
 
   async loadSettings() {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const raw = (await this.loadData()) ?? {};
+    const persistedSecrets = extractSecretsBag(raw as Record<string, unknown>);
+    this.secretStore = await createSecretStore(this.app, persistedSecrets);
+
+    // One-shot migration of any pre-1.0.0 plaintext credentials.
+    const { migrated, data } = await migratePlaintextSecrets(raw as Parameters<typeof migratePlaintextSecrets>[0], this.secretStore);
+    if (migrated) await this.persistRaw(data);
+
+    this.settings = mergeSettings(data as Record<string, unknown>);
+    this.secrets = await loadSecrets(this.secretStore);
+
+    // Re-persist to normalise: strip __secrets__ from data.json when using a
+    // non-safeStorage backend, or refresh it when using safeStorage.
+    await this.persistRaw(this.dataToPersist());
   }
 
   async saveSettings() {
-    await this.saveData(this.settings);
+    await this.persistRaw(this.dataToPersist());
+  }
+
+  async setSecret(id: string, value: string | null): Promise<void> {
+    await this.secretStore.set(id, value);
+    this.secrets = await loadSecrets(this.secretStore);
+    await this.persistRaw(this.dataToPersist());
+  }
+
+  async loadSecretsForDisplay(): Promise<Secrets> {
+    this.secrets = await loadSecrets(this.secretStore);
+    return this.secrets;
+  }
+
+  /**
+   * Resolve non-secret settings (with the attachment-folder fallback for the
+   * local backend) plus the cached secrets into a {@link BackendConfig}.
+   */
+  private resolveBackendConfig(): BackendConfig {
+    return resolveBackendConfig(this.resolveSettings(), this.secrets);
+  }
+
+  private dataToPersist(): Record<string, unknown> {
+    const plain = this.settings as unknown as Record<string, unknown>;
+    delete plain[SECRETS_DATA_KEY];
+    const data: Record<string, unknown> = { ...plain };
+    if (this.secretStore instanceof SafeStorageSecretStore) {
+      data[SECRETS_DATA_KEY] = this.secretStore.snapshot();
+    }
+    return data;
+  }
+
+  private async persistRaw(data: Record<string, unknown>): Promise<void> {
+    await this.saveData(data);
+  }
+
+  async testActiveBackend(): Promise<void> {
+    const vault = this.makeVault();
+    const backend = buildBackendFromSettings(this.resolveSettings(), this.resolveBackendConfig(), vault);
+    await backend.ping();
   }
 
   private makeVault(): ObsidianVaultAdapter {
     return new ObsidianVaultAdapter(this.app.vault, () => (this.app.vault as unknown as { getConfig?: (k: string) => string })?.getConfig?.("attachmentFolderPath") ?? "");
   }
 
-  async testActiveBackend(): Promise<void> {
-    const vault = this.makeVault();
-    const backend = buildBackendFromSettings(this.resolveSettings(), vault);
-    await backend.ping();
-  }
-
   async wipeActiveBackend(): Promise<WipeReport> {
     const vault = this.makeVault();
-    const backend = buildBackendFromSettings(this.resolveSettings(), vault);
+    const backend = buildBackendFromSettings(this.resolveSettings(), this.resolveBackendConfig(), vault);
     return await wipeBackend({ vault, backend }, this.settings);
   }
 
   async migrateActiveBackend(dest: Backend): Promise<MigrateReport> {
     const vault = this.makeVault();
-    const source = buildBackendFromSettings(this.resolveSettings(), vault);
+    const source = buildBackendFromSettings(this.resolveSettings(), this.resolveBackendConfig(), vault);
     return await migrateBackend({ vault, source, dest }, this.settings);
   }
 
   async collectWipeTargets(): Promise<string[]> {
     const vault = this.makeVault();
-    const backend = buildBackendFromSettings(this.resolveSettings(), vault);
+    const backend = buildBackendFromSettings(this.resolveSettings(), this.resolveBackendConfig(), vault);
     const scannerCfg: ScannerConfig = { ...this.settings.detectors };
     const refs = await walkVault(vault, this.settings.scanPaths, scannerCfg);
     return [...new Set(refs.filter(r => backend.selfProduced(r.url)).map(r => r.url))];
@@ -75,7 +141,7 @@ export default class MediaImporterPlugin extends Plugin {
   private async run(dryRun: boolean) {
     const vault = this.makeVault();
     const fetch = new ObsidianFetchRequester();
-    const backend = buildBackendFromSettings(this.resolveSettings(), vault);
+    const backend = buildBackendFromSettings(this.resolveSettings(), this.resolveBackendConfig(), vault);
 
     const deps: ImporterDeps = {
       vault,
@@ -148,4 +214,39 @@ export default class MediaImporterPlugin extends Plugin {
     for (const f of acc.failed) body.createEl("div").setText(`${f.ref.url} — ${f.error}`);
     modal.open();
   }
+}
+
+/**
+ * Extract the `__secrets__` bag from raw data.json content. Only present
+ * when a previous run used the `SafeStorageSecretStore` fallback; absent
+ * when using Obsidian's native `SecretStorage`.
+ */
+function extractSecretsBag(raw: Record<string, unknown>): Record<string, string> | null {
+  const bag = raw[SECRETS_DATA_KEY];
+  if (bag && typeof bag === "object" && !Array.isArray(bag)) {
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(bag as Record<string, unknown>)) {
+      if (typeof v === "string") out[k] = v;
+    }
+    return out;
+  }
+  return null;
+}
+
+/**
+ * Merge raw data.json content with {@link DEFAULT_SETTINGS}, dropping any
+ * legacy secret fields that may remain so they don't leak back into memory.
+ */
+function mergeSettings(raw: Record<string, unknown>): MediaImporterSettings {
+  const merged = Object.assign({}, DEFAULT_SETTINGS, raw) as MediaImporterSettings & {
+    webdav?: { password?: string };
+    s3?: { secretAccessKey?: string };
+  };
+  if (merged.webdav && typeof merged.webdav.password === "string") {
+    merged.webdav = { baseURL: merged.webdav.baseURL, username: merged.webdav.username, avoidOverwrite: merged.webdav.avoidOverwrite };
+  }
+  if (merged.s3 && typeof merged.s3.secretAccessKey === "string") {
+    merged.s3 = { endpoint: merged.s3.endpoint, region: merged.s3.region, bucket: merged.s3.bucket, accessKeyId: merged.s3.accessKeyId, keyPrefix: merged.s3.keyPrefix, publicUrlTemplate: merged.s3.publicUrlTemplate };
+  }
+  return merged;
 }

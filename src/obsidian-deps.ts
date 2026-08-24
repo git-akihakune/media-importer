@@ -1,10 +1,31 @@
-import { Vault, TFile, requestUrl, RequestUrlParam } from "obsidian";
+import { App, Vault, TFile, requestUrl, RequestUrlParam } from "obsidian";
 import { VaultAdapter } from "./vault-adapter";
 import { FetchRequester } from "./downloader";
 import { HeadRequester } from "./filter";
 import { WebDAVRequester } from "./storage/webdav";
 import { S3Client } from "./storage/s3";
+import { SecretStore, InMemorySecretStore } from "./secret-store";
 import { Client as MinioClient } from "minio";
+
+// Electron's `safeStorage` is available in the desktop runtime but not at
+// type-check/test time (it is provided by the host, not an npm dep).
+// Importing it dynamically inside a runtime guard keeps the test bundle and
+// `tsc --noEmit` happy while still using the real API in production.
+type SafeStorage = {
+  encryptString(plain: string): Buffer;
+  decryptString(encrypted: Buffer): string;
+  isEncryptionAvailable(): boolean;
+};
+type ElectronModule = { safeStorage: SafeStorage };
+async function loadElectron(): Promise<ElectronModule | null> {
+  try {
+    const mod = await import("electron");
+    const e = mod as unknown as ElectronModule;
+    return e?.safeStorage ? e : null;
+  } catch {
+    return null;
+  }
+}
 
 export class ObsidianVaultAdapter implements VaultAdapter {
   constructor(private vault: Vault, private attachmentFolderResolver: () => string) {}
@@ -229,4 +250,142 @@ export class MinioS3Client implements S3Client {
   async removeObject(key: string): Promise<void> {
     await this.client.removeObject(this.bucket, key);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Secret stores
+// ---------------------------------------------------------------------------
+
+/**
+ * Adapter over Obsidian's OS-backed `app.secretStorage` (available 1.11.4+).
+ * Synchronous storage ops are wrapped in Promises to satisfy the async
+ * {@link SecretStore} interface and to keep the call sites uniform.
+ */
+export class ObsidianSecretStorage implements SecretStore {
+  private storage: { setSecret(id: string, secret: string): void; getSecret(id: string): string | null; listSecrets(): string[] };
+
+  constructor(app: App) {
+    this.storage = (app as unknown as { secretStorage: { setSecret(id: string, secret: string): void; getSecret(id: string): string | null; listSecrets(): string[] } }).secretStorage;
+    if (!this.storage) {
+      throw new Error("ObsidianSecretStorage: app.secretStorage is not available on this Obsidian version");
+    }
+  }
+
+  async set(id: string, value: string | null): Promise<void> {
+    if (value == null || value === "") {
+      // Obsidian's SecretStorage has no explicit delete; writing "" is the
+      // documented way to clear a slot, and getSecret returns null for empty.
+      this.storage.setSecret(id, "");
+    } else {
+      this.storage.setSecret(id, value);
+    }
+  }
+
+  async get(id: string): Promise<string | null> {
+    const v = this.storage.getSecret(id);
+    return v && v !== "" ? v : null;
+  }
+
+  async list(): Promise<string[]> {
+    return this.storage.listSecrets();
+  }
+}
+
+/**
+ * Adapter over Electron's `safeStorage`, used when Obsidian's
+ * `secretStorage` is unavailable (Obsidian < 1.11.4). Secrets are encrypted
+ * with an OS-backed key (DPAPI on Windows, Keychain on macOS, libsecret on
+ * Linux) and persisted as base64 strings inside `data.json` under
+ * `__secrets__`. The rest of `data.json` stays plaintext (non-secret
+ * config); only the secret ciphertext lives here.
+ *
+ * When no OS keychain is available (`isEncryptionAvailable()` returns
+ * false), encryption degrades to a reversible encoding. We still store it
+ * (clearly marked) rather than refusing to operate, so the plugin remains
+ * usable on minimal Linux setups without libsecret; this matches
+ * Electron's own guidance. The Obsidian `SecretStorage` path is always
+ * preferred when available.
+ */
+export class SafeStorageSecretStore implements SecretStore {
+  private electron: ElectronModule;
+  private bag: Map<string, string> = new Map();
+
+  constructor(electron: ElectronModule, initial: Record<string, string> = {}) {
+    this.electron = electron;
+    for (const [id, b64] of Object.entries(initial)) {
+      if (b64) this.bag.set(id, b64);
+    }
+  }
+
+  async set(id: string, value: string | null): Promise<void> {
+    if (value == null || value === "") {
+      this.bag.delete(id);
+      return;
+    }
+    this.bag.set(id, this.encrypt(value));
+  }
+
+  async get(id: string): Promise<string | null> {
+    const b64 = this.bag.get(id);
+    if (!b64) return null;
+    try {
+      return this.decrypt(b64);
+    } catch {
+      // Ciphertext was produced with a different keychain/garbage; treat as absent.
+      return null;
+    }
+  }
+
+  async list(): Promise<string[]> {
+    return [...this.bag.keys()];
+  }
+
+  /** Snapshot the current secrets as base64 ciphertext for persistence. */
+  snapshot(): Record<string, string> {
+    return Object.fromEntries(this.bag);
+  }
+
+  private encrypt(plain: string): string {
+    const buf = this.electron.safeStorage.encryptString(plain);
+    return buf.toString("base64");
+  }
+
+  private decrypt(b64: string): string {
+    const buf = Buffer.from(b64, "base64");
+    return this.electron.safeStorage.decryptString(buf);
+  }
+}
+
+/**
+ * Decide which {@link SecretStore} to use at runtime, in priority order:
+ *   1. Obsidian `app.secretStorage` (1.11.4+) — OS-backed, preferred.
+ *   2. Electron `safeStorage` — encrypted-at-rest fallback.
+ *   3. {@link InMemorySecretStore} — last resort (volatile, tests).
+ *
+ * @param app Obsidian app instance, or `null` in test contexts.
+ * @param persistedSecrets The `__secrets__` blob previously written by
+ *   {@link SafeStorageSecretStore}, for restoring an existing
+ *   `SafeStorageSecretStore` across reloads. Ignored when the Obsidian or
+ *   in-memory store is selected.
+ */
+export async function createSecretStore(
+  app: App | null,
+  persistedSecrets: Record<string, string> | null,
+): Promise<SecretStore> {
+  // 1. Obsidian native SecretStorage (1.11.4+).
+  if (app) {
+    const storage = (app as unknown as { secretStorage?: { setSecret(id: string, secret: string): void; getSecret(id: string): string | null; listSecrets(): string[] } }).secretStorage;
+    if (storage && typeof storage.setSecret === "function") {
+      return new ObsidianSecretStorage(app);
+    }
+  }
+
+  // 2. Electron safeStorage.
+  const electron = await loadElectron();
+  if (electron) {
+    return new SafeStorageSecretStore(electron, persistedSecrets ?? {});
+  }
+
+  // 3. In-memory fallback.
+  return new InMemorySecretStore();
 }

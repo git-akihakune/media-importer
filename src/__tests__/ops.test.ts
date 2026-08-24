@@ -21,8 +21,8 @@ const baseSettings: MediaImporterSettings = {
   sizeLimitMB: null,
   activeBackend: "local",
   local: { folder: "media" },
-  webdav: { baseURL: "", username: "", password: "", avoidOverwrite: false },
-  s3: { endpoint: "", region: "", bucket: "", accessKeyId: "", secretAccessKey: "", keyPrefix: "", publicUrlTemplate: "" },
+  webdav: { baseURL: "", username: "", avoidOverwrite: false },
+  s3: { endpoint: "", region: "", bucket: "", accessKeyId: "", keyPrefix: "", publicUrlTemplate: "" },
   requestTimeoutSec: 30,
 };
 

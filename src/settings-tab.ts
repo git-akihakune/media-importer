@@ -3,6 +3,7 @@ import MediaImporterPlugin from "./main";
 import { MediaImporterSettings } from "./settings";
 import { WipeConfirmModal } from "./modals/wipe-modal";
 import { MigrateModal } from "./modals/migrate-modal";
+import { SECRET_KEYS, Secrets } from "./secrets";
 
 export class MediaImporterSettingTab extends PluginSettingTab {
   constructor(app: App, private plugin: MediaImporterPlugin) {
@@ -13,6 +14,13 @@ export class MediaImporterSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     const s = this.plugin.settings;
     containerEl.empty();
+    void this.plugin.loadSecretsForDisplay().then((secrets) => {
+      this.renderBody(s, secrets);
+    });
+  }
+
+  private renderBody(s: MediaImporterSettings, secrets: Secrets): void {
+    const { containerEl } = this;
 
     // ---- Scanning ----
     new Setting(containerEl).setName("Scanning").setHeading();
@@ -120,14 +128,24 @@ export class MediaImporterSettingTab extends PluginSettingTab {
     } else if (s.activeBackend === "webdav") {
       new Setting(containerEl).setName("WebDAV base URL").addText((t: TextComponent) => t.setValue(s.webdav.baseURL).onChange(async (v: string) => { s.webdav.baseURL = v; await this.plugin.saveSettings(); }));
       new Setting(containerEl).setName("Username").addText((t: TextComponent) => t.setValue(s.webdav.username).onChange(async (v: string) => { s.webdav.username = v; await this.plugin.saveSettings(); }));
-      new Setting(containerEl).setName("Password").addText((t: TextComponent) => { t.inputEl.type = "password"; t.setValue(s.webdav.password).onChange(async (v: string) => { s.webdav.password = v; await this.plugin.saveSettings(); }); });
+      new Setting(containerEl).setName("Password").setDesc("Stored in your OS keychain via Obsidian's secret storage.").addText((t: TextComponent) => {
+        t.inputEl.type = "password";
+        t.setValue(secrets.webdavPassword);
+        t.setPlaceholder(secrets.webdavPassword ? "••••••••" : "");
+        t.onChange(async (v: string) => { await this.plugin.setSecret(SECRET_KEYS.webdavPassword, v); });
+      });
       new Setting(containerEl).setName("Avoid overwrite").addToggle((t: ToggleComponent) => t.setValue(s.webdav.avoidOverwrite).onChange(async (v: boolean) => { s.webdav.avoidOverwrite = v; await this.plugin.saveSettings(); }));
     } else if (s.activeBackend === "s3") {
       new Setting(containerEl).setName("Endpoint").addText((t: TextComponent) => t.setValue(s.s3.endpoint).onChange(async (v: string) => { s.s3.endpoint = v; await this.plugin.saveSettings(); }));
       new Setting(containerEl).setName("Region").addText((t: TextComponent) => t.setValue(s.s3.region).onChange(async (v: string) => { s.s3.region = v; await this.plugin.saveSettings(); }));
       new Setting(containerEl).setName("Bucket").addText((t: TextComponent) => t.setValue(s.s3.bucket).onChange(async (v: string) => { s.s3.bucket = v; await this.plugin.saveSettings(); }));
       new Setting(containerEl).setName("Access key ID").addText((t: TextComponent) => t.setValue(s.s3.accessKeyId).onChange(async (v: string) => { s.s3.accessKeyId = v; await this.plugin.saveSettings(); }));
-      new Setting(containerEl).setName("Secret access key").addText((t: TextComponent) => { t.inputEl.type = "password"; t.setValue(s.s3.secretAccessKey).onChange(async (v: string) => { s.s3.secretAccessKey = v; await this.plugin.saveSettings(); }); });
+      new Setting(containerEl).setName("Secret access key").setDesc("Stored in your OS keychain via Obsidian's secret storage.").addText((t: TextComponent) => {
+        t.inputEl.type = "password";
+        t.setValue(secrets.s3SecretAccessKey);
+        t.setPlaceholder(secrets.s3SecretAccessKey ? "••••••••" : "");
+        t.onChange(async (v: string) => { await this.plugin.setSecret(SECRET_KEYS.s3SecretAccessKey, v); });
+      });
       new Setting(containerEl).setName("Key prefix").addText((t: TextComponent) => t.setValue(s.s3.keyPrefix).onChange(async (v: string) => { s.s3.keyPrefix = v; await this.plugin.saveSettings(); }));
       new Setting(containerEl).setName("Public URL template").setDesc("Use {{key}} as placeholder. Empty = <endpoint>/<bucket>/<key>.").addText((t: TextComponent) => t.setValue(s.s3.publicUrlTemplate).onChange(async (v: string) => { s.s3.publicUrlTemplate = v; await this.plugin.saveSettings(); }));
     }

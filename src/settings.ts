@@ -14,8 +14,18 @@ export interface MediaImporterSettings {
   sizeLimitMB: number | null;
   activeBackend: BackendId;
   local: { folder: string | null };
-  webdav: { baseURL: string; username: string; password: string; avoidOverwrite: boolean };
-  s3: { endpoint: string; region: string; bucket: string; accessKeyId: string; secretAccessKey: string; keyPrefix: string; publicUrlTemplate: string };
+  /**
+   * WebDAV configuration. The password never lives here — it is stored in the
+   * secret store under {@link SECRET_KEYS.webdavPassword} and merged in at
+   * call time via {@link resolveBackendConfig}.
+   */
+  webdav: { baseURL: string; username: string; avoidOverwrite: boolean };
+  /**
+   * S3 configuration. The secret access key never lives here — it is stored
+   * in the secret store under {@link SECRET_KEYS.s3SecretAccessKey} and
+   * merged in at call time via {@link resolveBackendConfig}.
+   */
+  s3: { endpoint: string; region: string; bucket: string; accessKeyId: string; keyPrefix: string; publicUrlTemplate: string };
   requestTimeoutSec: number;
 }
 
@@ -27,7 +37,7 @@ export const DEFAULT_SETTINGS: MediaImporterSettings = {
   sizeLimitMB: null,
   activeBackend: "local",
   local: { folder: null },
-  webdav: { baseURL: "", username: "", password: "", avoidOverwrite: false },
-  s3: { endpoint: "", region: "", bucket: "", accessKeyId: "", secretAccessKey: "", keyPrefix: "", publicUrlTemplate: "" },
+  webdav: { baseURL: "", username: "", avoidOverwrite: false },
+  s3: { endpoint: "", region: "", bucket: "", accessKeyId: "", keyPrefix: "", publicUrlTemplate: "" },
   requestTimeoutSec: 30,
 };
