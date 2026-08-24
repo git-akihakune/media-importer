@@ -1,0 +1,33 @@
+/* Media Importer plugin styles */
+
+/* Wipe confirmation modal */
+.media-importer-wipe-warning {
+  color: var(--text-error, #f44336);
+  font-weight: bold;
+}
+
+.media-importer-wipe-list {
+  max-height: 200px;
+  overflow-y: auto;
+  margin: 1em 0;
+}
+
+.media-importer-wipe-note {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Settings tab: connection test status line */
+.media-importer-status {
+  margin-left: var(--checkbox-size);
+  margin-top: 0.5em;
+  min-height: 1.2em;
+}
+
+.media-importer-status-ok {
+  color: var(--text-success, #4caf50);
+}
+
+.media-importer-status-error {
+  color: var(--text-error, #f44336);
+}

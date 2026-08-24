@@ -1,0 +1,10 @@
+{
+  "id": "media-importer",
+  "name": "Media Importer",
+  "version": "0.1.0",
+  "minAppVersion": "1.6.6",
+  "description": "Download remote media referenced in your notes and store it locally or on a remote backend (WebDAV, S3).",
+  "author": "Aki Hakune",
+  "authorUrl": "https://github.com/git-akihakune",
+  "isDesktopOnly": true
+}

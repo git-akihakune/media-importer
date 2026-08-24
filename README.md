@@ -65,7 +65,7 @@ npm install
 npm run build
 ```
 
-Copy `build/media-importer/main.js` and `build/media-importer/manifest.json` into your vault's `.obsidian/plugins/media-importer/` directory and enable the plugin.
+Copy `build/main.js`, `build/manifest.json`, and `build/styles.css` into your vault's `.obsidian/plugins/media-importer/` directory and enable the plugin.
 
 ## Development
 

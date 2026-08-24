@@ -3,7 +3,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync } from "fs";
 import path from "path";
 
 const prod = process.argv[2] === "--production";
-const outDir = "build/media-importer";
+const outDir = "build";
 
 const cssPlugin = {
   name: "css",
