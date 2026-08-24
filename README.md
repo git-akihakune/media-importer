@@ -75,3 +75,27 @@ npm run test      # vitest run
 npm run lint      # eslint
 npm run typecheck # tsc --noEmit
 ```
+
+## Releasing
+
+Releases are automated via the [Release workflow](.github/workflows/release.yml).
+
+### Tag-triggered release (typical)
+
+1. Bump `version` in `manifest.json` to the new version (e.g. `0.2.0`).
+2. Commit: `git commit -am "chore: bump version to 0.2.0"`.
+3. Tag and push: `git tag v0.2.0 && git push origin v0.2.0`.
+4. The workflow builds, lints, tests, updates `versions.json`, and publishes a GitHub release with `main.js`, `manifest.json`, and `styles.css` attached.
+
+The tag name **must** match `manifest.json`'s `version` prefixed with `v`, or the workflow will fail.
+
+### Manual release (workflow_dispatch)
+
+From the Actions tab → "Release" workflow → "Run workflow", enter the version (without the `v` prefix). The workflow will create the tag if it doesn't exist, then build and release.
+
+### What the workflow does
+
+- Runs lint, typecheck, tests, and a production build.
+- Asserts the tag version matches `manifest.json`.
+- Appends the new version + `minAppVersion` to `versions.json` and commits back to the default branch.
+- Creates a GitHub release with auto-generated release notes and the three Obsidian-required artifacts as separate assets (not zipped).
