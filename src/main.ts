@@ -88,10 +88,14 @@ export default class MediaImporterPlugin extends Plugin {
 
   /**
    * Resolve non-secret settings (with the attachment-folder fallback for the
-   * local backend) plus the cached secrets into a {@link BackendConfig}.
+   * local backend) plus the current secrets into a {@link BackendConfig}.
+   * Always reads fresh from the secret store so a just-typed password is
+   * visible even before the async `setSecret` callback has updated the cache.
    */
-  private resolveBackendConfig(): BackendConfig {
-    return resolveBackendConfig(this.resolveSettings(), this.secrets);
+  private async resolveBackendConfig(): Promise<BackendConfig> {
+    const secrets = await loadSecrets(this.secretStore);
+    this.secrets = secrets;
+    return resolveBackendConfig(this.resolveSettings(), secrets);
   }
 
   private dataToPersist(): Record<string, unknown> {
@@ -110,7 +114,7 @@ export default class MediaImporterPlugin extends Plugin {
 
   async testActiveBackend(): Promise<void> {
     const vault = this.makeVault();
-    const backend = buildBackendFromSettings(this.resolveSettings(), this.resolveBackendConfig(), vault);
+    const backend = buildBackendFromSettings(this.resolveSettings(), await this.resolveBackendConfig(), vault);
     await backend.ping();
   }
 
@@ -120,19 +124,19 @@ export default class MediaImporterPlugin extends Plugin {
 
   async wipeActiveBackend(): Promise<WipeReport> {
     const vault = this.makeVault();
-    const backend = buildBackendFromSettings(this.resolveSettings(), this.resolveBackendConfig(), vault);
+    const backend = buildBackendFromSettings(this.resolveSettings(), await this.resolveBackendConfig(), vault);
     return await wipeBackend({ vault, backend }, this.settings);
   }
 
   async migrateActiveBackend(dest: Backend): Promise<MigrateReport> {
     const vault = this.makeVault();
-    const source = buildBackendFromSettings(this.resolveSettings(), this.resolveBackendConfig(), vault);
+    const source = buildBackendFromSettings(this.resolveSettings(), await this.resolveBackendConfig(), vault);
     return await migrateBackend({ vault, source, dest }, this.settings);
   }
 
   async collectWipeTargets(): Promise<string[]> {
     const vault = this.makeVault();
-    const backend = buildBackendFromSettings(this.resolveSettings(), this.resolveBackendConfig(), vault);
+    const backend = buildBackendFromSettings(this.resolveSettings(), await this.resolveBackendConfig(), vault);
     const scannerCfg: ScannerConfig = { ...this.settings.detectors };
     const refs = await walkVault(vault, this.settings.scanPaths, scannerCfg);
     return [...new Set(refs.filter(r => backend.selfProduced(r.url)).map(r => r.url))];
@@ -141,7 +145,7 @@ export default class MediaImporterPlugin extends Plugin {
   private async run(dryRun: boolean) {
     const vault = this.makeVault();
     const fetch = new ObsidianFetchRequester();
-    const backend = buildBackendFromSettings(this.resolveSettings(), this.resolveBackendConfig(), vault);
+    const backend = buildBackendFromSettings(this.resolveSettings(), await this.resolveBackendConfig(), vault);
 
     const deps: ImporterDeps = {
       vault,
