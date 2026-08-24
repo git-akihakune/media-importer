@@ -37,7 +37,7 @@ export class MigrateModal extends Modal {
           });
       });
 
-    this.destFieldsEl = contentEl.createEl("div");
+    this.destFieldsEl = contentEl.createDiv();
     this.renderDestFields();
 
     new Setting(contentEl)

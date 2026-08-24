@@ -16,9 +16,9 @@
     "@types/node": "^20.11.0",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
-    "builtin-modules": "^3.3.0",
     "esbuild": "^0.20.0",
     "eslint": "^8.57.0",
+    "eslint-plugin-obsidianmd": "^0.4.1",
     "typescript": "^5.4.0",
     "vitest": "^1.4.0"
   },

@@ -57,14 +57,14 @@ export default class MediaImporterPlugin extends Plugin {
   }
 
   async loadSettings() {
-    const raw = (await this.loadData()) ?? {};
-    const persistedSecrets = extractSecretsBag(raw as Record<string, unknown>);
+    const raw: Record<string, unknown> = (await this.loadData() as Record<string, unknown> | null) ?? {};
+    const persistedSecrets = extractSecretsBag(raw);
     this.secretStore = await createSecretStore(this.app, persistedSecrets);
 
     // One-shot migration of any pre-1.0.0 plaintext credentials.
-    const { data } = await migratePlaintextSecrets(raw as Parameters<typeof migratePlaintextSecrets>[0], this.secretStore);
+    const { data } = await migratePlaintextSecrets(raw, this.secretStore);
 
-    this.settings = mergeSettings(data as Record<string, unknown>);
+    this.settings = mergeSettings(data);
     this.secrets = await loadSecrets(this.secretStore);
 
     // Persist the normalised state: clean data.json with secrets stripped,
@@ -172,7 +172,7 @@ export default class MediaImporterPlugin extends Plugin {
       reportRewritten() {},
       finish(r: RunReport) {
         notice?.setMessage(`Media import: done — ${r.downloaded} downloaded, ${r.dropped.length} dropped, ${r.failed.length} failed`);
-        setTimeout(() => notice?.hide(), 5000);
+        window.setTimeout(() => notice?.hide(), 5000);
       },
     };
 
@@ -203,19 +203,19 @@ export default class MediaImporterPlugin extends Plugin {
   private showDryRunModal(acc: DryRunAccumulator) {
     const modal = new Modal(this.app);
     modal.titleEl.setText("Media import — dry run preview");
-    const body = modal.contentEl.createEl("div");
+    const body = modal.contentEl.createDiv();
     const section = (title: string, count: number) => {
       const h = body.createEl("h3");
       h.setText(`${title} (${count})`);
     };
     section("Would download", acc.wouldDownload.length);
-    for (const w of acc.wouldDownload) body.createEl("div").setText(`${w.notePath} → ${w.dest}  (${w.ref.url})`);
+    for (const w of acc.wouldDownload) body.createDiv().setText(`${w.notePath} → ${w.dest}  (${w.ref.url})`);
     section("Would rewrite", acc.wouldRewrite.length);
-    for (const w of acc.wouldRewrite) body.createEl("div").setText(`${w.notePath}: ${w.ref.url} → ${w.newUrl}`);
+    for (const w of acc.wouldRewrite) body.createDiv().setText(`${w.notePath}: ${w.ref.url} → ${w.newUrl}`);
     section("Dropped", acc.dropped.length);
-    for (const d of acc.dropped) body.createEl("div").setText(`${d.ref.url} — ${d.reason}`);
+    for (const d of acc.dropped) body.createDiv().setText(`${d.ref.url} — ${d.reason}`);
     section("Failed", acc.failed.length);
-    for (const f of acc.failed) body.createEl("div").setText(`${f.ref.url} — ${f.error}`);
+    for (const f of acc.failed) body.createDiv().setText(`${f.ref.url} — ${f.error}`);
     modal.open();
   }
 }

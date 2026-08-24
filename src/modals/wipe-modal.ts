@@ -2,7 +2,7 @@ import { App, Modal, ButtonComponent, Setting, Notice } from "obsidian";
 import MediaImporterPlugin from "../main";
 
 export class WipeConfirmModal extends Modal {
-  private countdownInterval: ReturnType<typeof setInterval> | null = null;
+  private countdownInterval: ReturnType<Window["setInterval"]> | null = null;
 
   constructor(app: App, private plugin: MediaImporterPlugin, private targets: string[]) {
     super(app);
@@ -12,22 +12,15 @@ export class WipeConfirmModal extends Modal {
     const { contentEl, titleEl } = this;
     titleEl.setText("Wipe remote data");
 
-    const warning = contentEl.createEl("p");
-    warning.style.color = "var(--text-error, #f44336)";
-    warning.style.fontWeight = "bold";
+    const warning = contentEl.createEl("p", { cls: "media-importer-wipe-warning" });
     warning.setText(`This will permanently delete ${this.targets.length} file(s) from the active backend. This action is not reversible.`);
 
-    const list = contentEl.createEl("div");
-    list.style.maxHeight = "200px";
-    list.style.overflowY = "auto";
-    list.style.margin = "1em 0";
+    const list = contentEl.createDiv({ cls: "media-importer-wipe-list" });
     for (const url of this.targets) {
-      list.createEl("div").setText(url);
+      list.createDiv().setText(url);
     }
 
-    const note = contentEl.createEl("p");
-    note.style.color = "var(--text-muted)";
-    note.style.fontStyle = "italic";
+    const note = contentEl.createEl("p", { cls: "media-importer-wipe-note" });
     note.setText("Note: your notes will keep their (now-broken) links. This only deletes backend files.");
 
     let secondsLeft = 3;
@@ -40,10 +33,10 @@ export class WipeConfirmModal extends Modal {
         b.setButtonText(`Delete ${this.targets.length} files (${secondsLeft})`)
           .setClass("mod-warning")
           .setDisabled(true);
-        const interval = setInterval(() => {
+        const interval = window.setInterval(() => {
           secondsLeft--;
           if (secondsLeft <= 0) {
-            clearInterval(interval);
+            window.clearInterval(interval);
             this.countdownInterval = null;
             b.setButtonText(`Delete ${this.targets.length} files`).setDisabled(false);
           } else {
@@ -66,7 +59,7 @@ export class WipeConfirmModal extends Modal {
   }
 
   onClose(): void {
-    if (this.countdownInterval !== null) clearInterval(this.countdownInterval);
+    if (this.countdownInterval !== null) window.clearInterval(this.countdownInterval);
     this.contentEl.empty();
   }
 }

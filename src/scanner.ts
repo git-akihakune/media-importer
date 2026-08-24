@@ -32,7 +32,7 @@ export function scanNote(note: string, cfg: ScannerConfig): MediaRef[] {
       else if (hasImageExtension(url) && cfg.mdImage) kind = "md-image";
       else if (!hasAvExtension(url) && !hasImageExtension(url) && cfg.mdImage) kind = "md-image";
       if (kind) {
-        const wrapped = detectWrap(note, m.index!, raw, url);
+        const wrapped = detectWrap(note, m.index, raw, url);
         push(refs, url, kind, wrapped.start, wrapped.raw, wrapped.linkUrl);
       }
     }
@@ -41,21 +41,21 @@ export function scanNote(note: string, cfg: ScannerConfig): MediaRef[] {
   if (cfg.wikilink) {
     for (const m of note.matchAll(WIKILINK_EMBED_RE)) {
       const url = m[1];
-      if (isExternalUrl(url)) push(refs, url, "wikilink", m.index!, m[0]);
+      if (isExternalUrl(url)) push(refs, url, "wikilink", m.index, m[0]);
     }
   }
 
   if (cfg.htmlImg) {
     for (const m of note.matchAll(HTML_IMG_RE)) {
       const url = m[1] ?? m[2] ?? m[3];
-      if (url && isExternalUrl(url)) push(refs, url, "html-img", m.index!, m[0]);
+      if (url && isExternalUrl(url)) push(refs, url, "html-img", m.index, m[0]);
     }
   }
 
   if (cfg.htmlAv) {
     for (const m of note.matchAll(HTML_AV_RE)) {
       const url = m[1] ?? m[2] ?? m[3];
-      if (url && isExternalUrl(url)) push(refs, url, "html-source", m.index!, m[0]);
+      if (url && isExternalUrl(url)) push(refs, url, "html-source", m.index, m[0]);
     }
   }
 

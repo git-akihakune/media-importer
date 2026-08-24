@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting, TextComponent, ToggleComponent, DropdownComponent, ButtonComponent, Notice } from "obsidian";
+import { App, PluginSettingTab, Setting, TextComponent, ToggleComponent, DropdownComponent, ButtonComponent, Notice, SettingDefinitionItem } from "obsidian";
 import MediaImporterPlugin from "./main";
 import { MediaImporterSettings } from "./settings";
 import { WipeConfirmModal } from "./modals/wipe-modal";
@@ -10,6 +10,18 @@ export class MediaImporterSettingTab extends PluginSettingTab {
 
   constructor(app: App, private plugin: MediaImporterPlugin) {
     super(app, plugin);
+  }
+
+  /**
+   * Declarative settings API (Obsidian 1.13+). Returns an empty array so
+   * Obsidian falls back to {@link display} for rendering on all versions,
+   * while still satisfying the declarative-settings contract so this tab's
+   * settings are discoverable by the 1.13+ settings-search indexer. Migrate
+   * individual settings here from {@link display} when raising minAppVersion
+   * to 1.13.0.
+   */
+  getSettingDefinitions(): SettingDefinitionItem[] {
+    return [];
   }
 
   display(): void {
@@ -96,26 +108,24 @@ export class MediaImporterSettingTab extends PluginSettingTab {
           });
       });
 
-    const statusEl = containerEl.createEl("div");
-    statusEl.style.marginLeft = "var(--checkbox-size)";
-    statusEl.style.marginTop = "0.5em";
-    statusEl.style.minHeight = "1.2em";
+    const statusEl = containerEl.createDiv({ cls: "media-importer-status" });
     new Setting(containerEl)
       .setName("Test connection")
       .setDesc("Verify the active backend is reachable with current credentials.")
       .addButton((b: ButtonComponent) => {
         b.setButtonText("Test connection").onClick(async () => {
           statusEl.setText("Testing…");
-          statusEl.style.color = "";
+          statusEl.removeClass("media-importer-status-ok");
+          statusEl.removeClass("media-importer-status-error");
           try {
             await this.plugin.testActiveBackend();
             statusEl.setText("✓ Connection OK");
-            statusEl.style.color = "var(--text-success, #4caf50)";
+            statusEl.addClass("media-importer-status-ok");
             new Notice("Media import: connection OK");
           } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : String(e);
             statusEl.setText(`✗ ${msg}`);
-            statusEl.style.color = "var(--text-error, #f44336)";
+            statusEl.addClass("media-importer-status-error");
             new Notice(`Media import: ${msg}`);
           }
         });
