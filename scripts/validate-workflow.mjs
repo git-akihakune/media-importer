@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 import yaml from "js-yaml";
 
 const EXPECTED_STEPS = [
@@ -18,33 +19,69 @@ const EXPECTED_STEPS = [
   "Create release",
 ];
 
-function fail(message) {
-  console.error(message);
-  process.exit(1);
+/**
+ * Validate a release workflow YAML string.
+ * @param {string} text
+ * @returns {{ ok: boolean, message: string }}
+ */
+export function validateWorkflow(text) {
+  let wf;
+  try {
+    wf = yaml.load(text);
+  } catch (e) {
+    return { ok: false, message: `invalid YAML: ${e.message}` };
+  }
+
+  if (!wf.on || !("push" in wf.on)) {
+    return { ok: false, message: "missing push trigger" };
+  }
+  if (!("workflow_dispatch" in wf.on)) {
+    return { ok: false, message: "missing workflow_dispatch trigger" };
+  }
+  if (
+    !Array.isArray(wf.on.push?.tags) ||
+    wf.on.push.tags.length !== 1 ||
+    wf.on.push.tags[0] !== "v*"
+  ) {
+    return { ok: false, message: "push tags must be ['v*']" };
+  }
+  if (wf.permissions?.contents !== "write") {
+    return { ok: false, message: "contents:write permission missing" };
+  }
+
+  const job = wf.jobs?.release;
+  if (!job) return { ok: false, message: "missing jobs.release" };
+  if (job["runs-on"] !== "ubuntu-latest") {
+    return { ok: false, message: "must run on ubuntu-latest" };
+  }
+
+  const names = (job.steps ?? []).map((s) => s.name);
+  let lastIndex = -1;
+  for (const expected of EXPECTED_STEPS) {
+    const idx = names.indexOf(expected);
+    if (idx === -1) {
+      return { ok: false, message: `missing step: ${expected}` };
+    }
+    if (idx <= lastIndex) {
+      return { ok: false, message: `step out of order: ${expected}` };
+    }
+    lastIndex = idx;
+  }
+
+  return { ok: true, message: `OK: ${EXPECTED_STEPS.length} expected steps present, triggers and permissions valid` };
 }
 
-const text = readFileSync(".github/workflows/release.yml", "utf8");
-let wf;
-try {
-  wf = yaml.load(text);
-} catch (e) {
-  fail(`invalid YAML: ${e.message}`);
+function main() {
+  const text = readFileSync(".github/workflows/release.yml", "utf8");
+  const result = validateWorkflow(text);
+  if (result.ok) {
+    console.log(result.message);
+  } else {
+    console.error(result.message);
+    process.exit(1);
+  }
 }
 
-if (!wf.on || !("push" in wf.on)) fail("missing push trigger");
-if (!("workflow_dispatch" in wf.on)) fail("missing workflow_dispatch trigger");
-if (!Array.isArray(wf.on.push?.tags) || wf.on.push.tags.length !== 1 || wf.on.push.tags[0] !== "v*") {
-  fail("push tags must be ['v*']");
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main();
 }
-if (wf.permissions?.contents !== "write") fail("contents:write permission missing");
-
-const job = wf.jobs?.release;
-if (!job) fail("missing jobs.release");
-if (job["runs-on"] !== "ubuntu-latest") fail("must run on ubuntu-latest");
-
-const names = (job.steps ?? []).map((s) => s.name);
-for (const expected of EXPECTED_STEPS) {
-  if (!names.includes(expected)) fail(`missing step: ${expected}`);
-}
-
-console.log(`OK: ${EXPECTED_STEPS.length} expected steps present, triggers and permissions valid`);

@@ -1,23 +1,31 @@
 import { readFileSync, appendFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 
-const manifest = JSON.parse(readFileSync(new URL("../manifest.json", import.meta.url), "utf8"));
-const version = manifest.version;
-const minAppVersion = manifest.minAppVersion;
-
-if (!version || !minAppVersion) {
-  console.error("manifest.json missing version or minAppVersion");
-  process.exit(1);
+export function readManifestInfo(manifestPath) {
+  const manifest = JSON.parse(readFileSync(new URL(manifestPath, import.meta.url), "utf8"));
+  if (!manifest.version || !manifest.minAppVersion) {
+    throw new Error("manifest.json missing version or minAppVersion");
+  }
+  return { version: manifest.version, minAppVersion: manifest.minAppVersion };
 }
 
-function setOutput(key, value) {
-  const line = `${key}=${value}`;
-  const ghOutput = process.env.GITHUB_OUTPUT;
-  if (ghOutput) {
-    appendFileSync(ghOutput, line + "\n");
+export function writeOutputs(info, ghOutputPath) {
+  const lines = [
+    `version=${info.version}`,
+    `min_app_version=${info.minAppVersion}`,
+  ];
+  if (ghOutputPath) {
+    for (const line of lines) appendFileSync(ghOutputPath, line + "\n");
   } else {
-    console.log(line);
+    for (const line of lines) console.log(line);
   }
 }
 
-setOutput("version", version);
-setOutput("min_app_version", minAppVersion);
+function main() {
+  const info = readManifestInfo("../manifest.json");
+  writeOutputs(info, process.env.GITHUB_OUTPUT);
+}
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main();
+}
